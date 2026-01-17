@@ -1,0 +1,4 @@
+project_id = "pqigbviabnpavcrdhtqd"
+
+[functions.generate-floor-plan]
+verify_jwt = false

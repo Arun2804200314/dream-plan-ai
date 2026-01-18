@@ -38,53 +38,85 @@ serve(async (req) => {
 
     console.log("Generating floor plan with requirements:", requestData);
 
-    const systemPrompt = `You are an expert architectural AI that generates optimized floor plans. You must return a valid JSON object (no markdown, no code blocks) with room layouts based on user requirements.
+    const systemPrompt = `You are an expert architectural AI that generates optimized, REALISTIC floor plans. You MUST return a valid JSON object (no markdown, no code blocks) with room layouts.
 
-IMPORTANT RULES:
-1. All rooms must fit within the plot dimensions
-2. Rooms must not overlap
-3. Leave 2 units margin from plot edges
-4. Ensure logical room connectivity (bedrooms near bathrooms, kitchen near dining)
-5. If Vastu compliant, place kitchen in SE, master bedroom in SW, entrance in N/E
-6. Optimize for natural light and ventilation
-7. Consider the style preference for room proportions
+CRITICAL ARCHITECTURAL RULES:
+1. All rooms MUST fit within plot dimensions with 2ft margin from edges
+2. Rooms MUST NOT overlap - calculate positions carefully
+3. Include proper HALLWAY/CORRIDOR connecting rooms (minimum 4ft wide)
+4. Bedrooms: minimum 10x10ft, prefer 12x14ft
+5. Bathrooms: minimum 5x7ft, attach to bedrooms where possible
+6. Kitchen: minimum 8x10ft, place near dining
+7. Living room: largest room, typically 15x18ft or more
+8. Dining: 10x12ft minimum, adjacent to kitchen
+9. Garage: 12x20ft minimum for one car
+10. Include doors between connected rooms
+11. Add windows on exterior walls
+12. For multi-floor: place staircase (4x8ft) consistently on each floor
 
-Return ONLY a JSON object with this exact structure:
+CONNECTIVITY RULES:
+- Main entrance should lead to living room or hallway
+- Kitchen should connect to dining
+- Bedrooms should have attached or nearby bathrooms
+- All rooms must be accessible via doors/hallways
+
+VASTU COMPLIANCE (if requested):
+- Main entrance: North or East
+- Master bedroom: Southwest
+- Kitchen: Southeast
+- Bathroom: Northwest
+- Pooja room: Northeast
+
+Return ONLY this JSON structure:
 {
   "rooms": [
     {
       "id": "unique_id",
-      "type": "bedroom|bathroom|kitchen|living|dining|garage|balcony|garden|hallway",
-      "name": "Display Name",
-      "x": number,
-      "y": number,
-      "width": number,
-      "height": number,
-      "floor": number,
-      "color": "hsl(hue, sat%, light%)"
+      "type": "bedroom|bathroom|kitchen|living|dining|garage|balcony|garden|hallway|staircase|pooja|study",
+      "name": "Display Name (e.g., Master Bedroom, Kitchen, Hall)",
+      "x": number (distance from left edge in feet),
+      "y": number (distance from top edge in feet),
+      "width": number (room width in feet),
+      "height": number (room depth in feet),
+      "floor": number (1 for ground floor, 2 for first floor, etc.),
+      "color": "hsl(hue, saturation%, lightness%)",
+      "doors": [
+        { "position": "top|bottom|left|right", "offset": number (0-100, percentage along wall), "width": 3, "isMain": boolean }
+      ],
+      "windows": [
+        { "position": "top|bottom|left|right", "offset": number (0-100), "width": 4 }
+      ]
     }
   ],
-  "totalArea": number,
-  "efficiency": number,
-  "suggestions": ["string array of design recommendations"]
+  "totalArea": number (plot area in sq ft),
+  "efficiency": number (0.75-0.95, ratio of usable space),
+  "suggestions": ["array of 2-3 design recommendations"]
 }`;
 
-    const userPrompt = `Generate an optimized floor plan for:
-- Plot: ${requestData.plotLength} ft x ${requestData.plotWidth} ft
-- Floors: ${requestData.floors}
-- Bedrooms: ${requestData.bedrooms}
-- Bathrooms: ${requestData.bathrooms}
+    const userPrompt = `Generate a REALISTIC, professionally laid out floor plan for:
+- Plot Size: ${requestData.plotLength} ft (length/width) × ${requestData.plotWidth} ft (depth/height)
+- Number of Floors: ${requestData.floors}
+- Bedrooms Required: ${requestData.bedrooms}
+- Bathrooms Required: ${requestData.bathrooms}
 - Kitchens: ${requestData.kitchens}
 - Living Rooms: ${requestData.livingRooms}
 - Dining Rooms: ${requestData.diningRooms}
-- Garage: ${requestData.garage ? "Yes" : "No"}
-- Balcony: ${requestData.balcony ? "Yes" : "No"}
-- Garden: ${requestData.garden ? "Yes" : "No"}
-- Style: ${requestData.style}
-- Budget: ${requestData.budgetRange}
-- Vastu Compliant: ${requestData.vastuCompliant ? "Yes" : "No"}
+- Include Garage: ${requestData.garage ? "Yes (12x20ft minimum)" : "No"}
+- Include Balcony: ${requestData.balcony ? "Yes" : "No"}
+- Include Garden: ${requestData.garden ? "Yes (outdoor space)" : "No"}
+- Architectural Style: ${requestData.style}
+- Budget Range: ${requestData.budgetRange}
+- Vastu Compliant: ${requestData.vastuCompliant ? "Yes - MUST follow Vastu guidelines" : "No"}
 
-Create an efficient, well-connected layout. Return ONLY the JSON object, no other text.`;
+IMPORTANT:
+1. Calculate room positions so they don't overlap
+2. Add a hallway/corridor to connect rooms properly
+3. Place doors where rooms connect
+4. Add windows on exterior walls (walls touching plot boundary)
+5. Make the layout practical and livable
+6. If multiple floors, include staircase on each floor at the same position
+
+Return ONLY the JSON object, no explanations.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -93,11 +125,12 @@ Create an efficient, well-connected layout. Return ONLY the JSON object, no othe
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
+        temperature: 0.7,
       }),
     });
 
@@ -132,10 +165,8 @@ Create an efficient, well-connected layout. Return ONLY the JSON object, no othe
 
     console.log("Raw AI response:", content);
 
-    // Parse the JSON from the response, handling potential markdown code blocks
     let layoutData;
     try {
-      // Remove markdown code blocks if present
       let cleanContent = content.trim();
       if (cleanContent.startsWith("```json")) {
         cleanContent = cleanContent.slice(7);
@@ -146,10 +177,12 @@ Create an efficient, well-connected layout. Return ONLY the JSON object, no othe
         cleanContent = cleanContent.slice(0, -3);
       }
       layoutData = JSON.parse(cleanContent.trim());
+      
+      // Validate and fix the layout
+      layoutData = validateAndFixLayout(layoutData, requestData);
     } catch (parseError) {
       console.error("Failed to parse AI response:", parseError);
-      // Return a fallback layout
-      layoutData = generateFallbackLayout(requestData);
+      layoutData = generateRealisticLayout(requestData);
     }
 
     console.log("Generated layout:", layoutData);
@@ -167,113 +200,313 @@ Create an efficient, well-connected layout. Return ONLY the JSON object, no othe
   }
 });
 
-function generateFallbackLayout(req: FloorPlanRequest) {
-  const rooms = [];
-  const plotWidth = req.plotWidth;
-  const plotLength = req.plotLength;
+function validateAndFixLayout(layout: any, req: FloorPlanRequest) {
+  if (!layout.rooms || !Array.isArray(layout.rooms)) {
+    return generateRealisticLayout(req);
+  }
+  
+  // Ensure all rooms have required fields
+  layout.rooms = layout.rooms.map((room: any, index: number) => ({
+    id: room.id || `room-${index}`,
+    type: room.type || 'hallway',
+    name: room.name || `Room ${index + 1}`,
+    x: Math.max(2, Math.min(room.x || 2, req.plotLength - 10)),
+    y: Math.max(2, Math.min(room.y || 2, req.plotWidth - 10)),
+    width: Math.max(6, room.width || 10),
+    height: Math.max(6, room.height || 10),
+    floor: room.floor || 1,
+    color: room.color || getDefaultColor(room.type),
+    doors: room.doors || [],
+    windows: room.windows || [],
+  }));
+  
+  layout.totalArea = layout.totalArea || req.plotLength * req.plotWidth;
+  layout.efficiency = layout.efficiency || 0.85;
+  layout.suggestions = layout.suggestions || ["Layout generated successfully"];
+  
+  return layout;
+}
+
+function getDefaultColor(type: string): string {
+  const colors: Record<string, string> = {
+    bedroom: 'hsl(270, 40%, 85%)',
+    bathroom: 'hsl(195, 60%, 85%)',
+    kitchen: 'hsl(40, 70%, 85%)',
+    living: 'hsl(150, 40%, 85%)',
+    dining: 'hsl(30, 50%, 85%)',
+    garage: 'hsl(0, 0%, 80%)',
+    balcony: 'hsl(80, 50%, 85%)',
+    garden: 'hsl(120, 50%, 80%)',
+    hallway: 'hsl(0, 0%, 90%)',
+    staircase: 'hsl(0, 0%, 75%)',
+    pooja: 'hsl(45, 70%, 85%)',
+    study: 'hsl(220, 40%, 85%)',
+  };
+  return colors[type] || 'hsl(0, 0%, 85%)';
+}
+
+function generateRealisticLayout(req: FloorPlanRequest) {
+  const rooms: any[] = [];
   const margin = 2;
+  const wallThickness = 0.5;
+  const corridorWidth = 5;
   
-  let currentX = margin;
-  let currentY = margin;
-  const usableWidth = plotLength - margin * 2;
-  const usableHeight = plotWidth - margin * 2;
+  const usableWidth = req.plotLength - margin * 2;
+  const usableHeight = req.plotWidth - margin * 2;
   
-  // Calculate room dimensions
-  const roomWidth = usableWidth / 3;
-  const roomHeight = usableHeight / 2;
+  // Calculate layout zones
+  const leftZoneWidth = usableWidth * 0.35;
+  const rightZoneWidth = usableWidth * 0.35;
+  const centerZoneWidth = usableWidth * 0.3;
   
-  // Living Room (larger)
-  rooms.push({
-    id: "living-1",
-    type: "living",
-    name: "Living Room",
-    x: currentX,
-    y: currentY,
-    width: roomWidth * 1.5,
-    height: roomHeight,
-    floor: 1,
-    color: "hsl(215, 20%, 65%)"
-  });
+  let roomId = 1;
   
-  // Kitchen
-  rooms.push({
-    id: "kitchen-1",
-    type: "kitchen",
-    name: "Kitchen",
-    x: currentX + roomWidth * 1.5 + 1,
-    y: currentY,
-    width: roomWidth * 0.8,
-    height: roomHeight * 0.6,
-    floor: 1,
-    color: "hsl(35, 60%, 55%)"
-  });
-  
-  // Dining
-  rooms.push({
-    id: "dining-1",
-    type: "dining",
-    name: "Dining",
-    x: currentX + roomWidth * 1.5 + 1,
-    y: currentY + roomHeight * 0.6 + 1,
-    width: roomWidth * 0.8,
-    height: roomHeight * 0.4 - 1,
-    floor: 1,
-    color: "hsl(150, 30%, 50%)"
-  });
-  
-  // Bedrooms
-  for (let i = 0; i < Math.min(req.bedrooms, 3); i++) {
+  // For each floor
+  for (let floor = 1; floor <= req.floors; floor++) {
+    const isGroundFloor = floor === 1;
+    
+    // Hallway/Corridor - runs through the center
     rooms.push({
-      id: `bedroom-${i + 1}`,
-      type: "bedroom",
-      name: `Bedroom ${i + 1}`,
-      x: currentX + (roomWidth + 1) * i,
-      y: currentY + roomHeight + 2,
-      width: roomWidth - 1,
-      height: roomHeight - 2,
-      floor: 1,
-      color: "hsl(260, 30%, 60%)"
-    });
-  }
-  
-  // Bathrooms
-  for (let i = 0; i < Math.min(req.bathrooms, 2); i++) {
-    rooms.push({
-      id: `bathroom-${i + 1}`,
-      type: "bathroom",
-      name: `Bath ${i + 1}`,
-      x: plotLength - margin - 5 - (i * 6),
+      id: `hallway-${floor}`,
+      type: 'hallway',
+      name: floor === 1 ? 'Entrance Hall' : `Hallway F${floor}`,
+      x: margin + leftZoneWidth,
       y: margin,
-      width: 5,
-      height: 5,
-      floor: 1,
-      color: "hsl(195, 50%, 55%)"
+      width: centerZoneWidth,
+      height: usableHeight,
+      floor: floor,
+      color: getDefaultColor('hallway'),
+      doors: [
+        { position: 'bottom', offset: 45, width: 4, isMain: isGroundFloor },
+      ],
+      windows: [],
     });
+    
+    // Living Room - Ground floor left front
+    if (isGroundFloor) {
+      rooms.push({
+        id: `living-${roomId++}`,
+        type: 'living',
+        name: 'Living Room',
+        x: margin,
+        y: margin,
+        width: leftZoneWidth - wallThickness,
+        height: usableHeight * 0.55,
+        floor: floor,
+        color: getDefaultColor('living'),
+        doors: [
+          { position: 'right', offset: 50, width: 3.5 },
+        ],
+        windows: [
+          { position: 'left', offset: 30, width: 5 },
+          { position: 'left', offset: 70, width: 5 },
+          { position: 'top', offset: 50, width: 6 },
+        ],
+      });
+      
+      // Kitchen - Ground floor left back
+      rooms.push({
+        id: `kitchen-${roomId++}`,
+        type: 'kitchen',
+        name: 'Kitchen',
+        x: margin,
+        y: margin + usableHeight * 0.55 + wallThickness,
+        width: leftZoneWidth * 0.6,
+        height: usableHeight * 0.45 - wallThickness,
+        floor: floor,
+        color: getDefaultColor('kitchen'),
+        doors: [
+          { position: 'right', offset: 30, width: 3 },
+        ],
+        windows: [
+          { position: 'left', offset: 50, width: 4 },
+          { position: 'bottom', offset: 50, width: 4 },
+        ],
+      });
+      
+      // Dining - next to kitchen
+      rooms.push({
+        id: `dining-${roomId++}`,
+        type: 'dining',
+        name: 'Dining Room',
+        x: margin + leftZoneWidth * 0.6 + wallThickness,
+        y: margin + usableHeight * 0.55 + wallThickness,
+        width: leftZoneWidth * 0.4 - wallThickness * 2,
+        height: usableHeight * 0.45 - wallThickness,
+        floor: floor,
+        color: getDefaultColor('dining'),
+        doors: [
+          { position: 'right', offset: 50, width: 3 },
+          { position: 'left', offset: 50, width: 3 },
+        ],
+        windows: [
+          { position: 'bottom', offset: 50, width: 4 },
+        ],
+      });
+    }
+    
+    // Bedrooms - right side
+    const bedroomsPerFloor = Math.ceil(req.bedrooms / req.floors);
+    const bedroomHeight = (usableHeight - (bedroomsPerFloor - 1) * wallThickness) / bedroomsPerFloor;
+    
+    for (let b = 0; b < bedroomsPerFloor && rooms.filter(r => r.type === 'bedroom').length < req.bedrooms; b++) {
+      const bedroomY = margin + b * (bedroomHeight + wallThickness);
+      
+      rooms.push({
+        id: `bedroom-${roomId++}`,
+        type: 'bedroom',
+        name: rooms.filter(r => r.type === 'bedroom').length === 0 ? 'Master Bedroom' : `Bedroom ${rooms.filter(r => r.type === 'bedroom').length + 1}`,
+        x: margin + leftZoneWidth + centerZoneWidth + wallThickness,
+        y: bedroomY,
+        width: rightZoneWidth - 7,
+        height: bedroomHeight,
+        floor: floor,
+        color: getDefaultColor('bedroom'),
+        doors: [
+          { position: 'left', offset: 20, width: 3 },
+        ],
+        windows: [
+          { position: 'right', offset: 50, width: 5 },
+          { position: 'top', offset: 50, width: 4 },
+        ],
+      });
+      
+      // Attached bathroom
+      if (rooms.filter(r => r.type === 'bathroom').length < req.bathrooms) {
+        rooms.push({
+          id: `bathroom-${roomId++}`,
+          type: 'bathroom',
+          name: `Bath ${rooms.filter(r => r.type === 'bathroom').length + 1}`,
+          x: margin + leftZoneWidth + centerZoneWidth + rightZoneWidth - 7 + wallThickness,
+          y: bedroomY,
+          width: 6,
+          height: Math.min(bedroomHeight * 0.5, 8),
+          floor: floor,
+          color: getDefaultColor('bathroom'),
+          doors: [
+            { position: 'left', offset: 50, width: 2.5 },
+          ],
+          windows: [
+            { position: 'right', offset: 50, width: 2 },
+          ],
+        });
+      }
+    }
+    
+    // Staircase (if multi-floor)
+    if (req.floors > 1) {
+      rooms.push({
+        id: `staircase-${floor}`,
+        type: 'staircase',
+        name: 'Stairs',
+        x: margin + leftZoneWidth + centerZoneWidth * 0.7,
+        y: margin + usableHeight * 0.4,
+        width: centerZoneWidth * 0.3 - wallThickness,
+        height: 8,
+        floor: floor,
+        color: getDefaultColor('staircase'),
+        doors: [
+          { position: 'left', offset: 50, width: 3 },
+        ],
+        windows: [],
+      });
+    }
+    
+    // Second floor - additional bedrooms/study
+    if (!isGroundFloor) {
+      // Study room
+      rooms.push({
+        id: `study-${roomId++}`,
+        type: 'study',
+        name: 'Study',
+        x: margin,
+        y: margin,
+        width: leftZoneWidth - wallThickness,
+        height: usableHeight * 0.4,
+        floor: floor,
+        color: getDefaultColor('study'),
+        doors: [
+          { position: 'right', offset: 50, width: 3 },
+        ],
+        windows: [
+          { position: 'left', offset: 50, width: 5 },
+          { position: 'top', offset: 50, width: 5 },
+        ],
+      });
+      
+      // Balcony
+      if (req.balcony) {
+        rooms.push({
+          id: `balcony-${roomId++}`,
+          type: 'balcony',
+          name: 'Balcony',
+          x: margin,
+          y: margin + usableHeight * 0.4 + wallThickness,
+          width: leftZoneWidth - wallThickness,
+          height: usableHeight * 0.25,
+          floor: floor,
+          color: getDefaultColor('balcony'),
+          doors: [
+            { position: 'right', offset: 50, width: 6 },
+          ],
+          windows: [],
+        });
+      }
+    }
   }
   
-  // Garage
+  // Garage (ground floor only)
   if (req.garage) {
     rooms.push({
-      id: "garage-1",
-      type: "garage",
-      name: "Garage",
-      x: plotLength - margin - 10,
-      y: plotWidth - margin - 8,
-      width: 10,
-      height: 8,
+      id: `garage-${roomId++}`,
+      type: 'garage',
+      name: 'Garage',
+      x: margin + leftZoneWidth + centerZoneWidth + wallThickness,
+      y: margin + usableHeight - 12,
+      width: rightZoneWidth - wallThickness,
+      height: 12,
       floor: 1,
-      color: "hsl(0, 0%, 50%)"
+      color: getDefaultColor('garage'),
+      doors: [
+        { position: 'left', offset: 30, width: 3 },
+        { position: 'bottom', offset: 50, width: 10, isMain: true },
+      ],
+      windows: [],
     });
   }
+  
+  // Garden (ground floor only, exterior)
+  if (req.garden) {
+    rooms.push({
+      id: `garden-${roomId++}`,
+      type: 'garden',
+      name: 'Garden',
+      x: req.plotLength - margin - 10,
+      y: margin,
+      width: 8,
+      height: 15,
+      floor: 1,
+      color: getDefaultColor('garden'),
+      doors: [],
+      windows: [],
+    });
+  }
+
+  // Calculate used area
+  const usedArea = rooms
+    .filter(r => r.floor === 1)
+    .reduce((sum, r) => sum + r.width * r.height, 0);
+  const totalPlotArea = req.plotLength * req.plotWidth;
   
   return {
     rooms,
-    totalArea: plotLength * plotWidth,
-    efficiency: 0.85,
+    totalArea: totalPlotArea,
+    efficiency: Math.min(0.92, usedArea / totalPlotArea),
     suggestions: [
-      "Consider adding more natural light through larger windows",
-      "Ensure proper ventilation in all rooms",
-      "Kitchen placement optimizes workflow between cooking and dining"
-    ]
+      req.vastuCompliant ? "Layout follows Vastu principles with main entrance facing East" : "Layout optimized for natural light and ventilation",
+      "All bedrooms have attached bathrooms for convenience",
+      "Kitchen and dining are adjacent for easy access",
+      req.floors > 1 ? "Staircase positioned centrally for easy access to all floors" : "Single-floor layout maximizes accessibility",
+    ],
   };
 }

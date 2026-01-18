@@ -450,9 +450,6 @@ function Building({ layout, plotWidth, plotLength, floors }: BuildingProps) {
           floorHeight={WALL_HEIGHT}
         />
       ))}
-      
-      {/* Roof */}
-      <Roof plotWidth={plotWidth} plotLength={plotLength} floors={floors} />
     </group>
   );
 }

@@ -1,10 +1,12 @@
-import { Room, Furniture, Door, Window, ROOM_COLORS } from '@/types/floorPlan';
+import { Room, Furniture, Door, Window, ROOM_COLORS, RoomType } from '@/types/floorPlan';
 
 interface RoomSVGProps {
   room: Room;
   scale: number;
   zoom: number;
   wallThickness: number;
+  allRooms: Room[];
+  isInterior?: (side: 'top' | 'bottom' | 'left' | 'right') => boolean;
 }
 
 // Furniture icons as SVG paths
@@ -128,12 +130,13 @@ const FurnitureIcon = ({ type, x, y, width, height, rotation = 0 }: {
 };
 
 // Door arc SVG
-const DoorSVG = ({ door, roomWidth, roomHeight, scale, zoom }: {
+const DoorSVG = ({ door, roomWidth, roomHeight, scale, zoom, isInteriorWall }: {
   door: Door;
   roomWidth: number;
   roomHeight: number;
   scale: number;
   zoom: number;
+  isInteriorWall: boolean;
 }) => {
   const doorWidthPx = door.width * scale * zoom;
   const isHorizontal = door.position === 'top' || door.position === 'bottom';
@@ -141,7 +144,7 @@ const DoorSVG = ({ door, roomWidth, roomHeight, scale, zoom }: {
   const offsetPx = (door.offset / 100) * wallLength * scale * zoom;
   
   let x = 0, y = 0, arcPath = '';
-  const arcRadius = doorWidthPx;
+  const arcRadius = doorWidthPx * 0.8;
   
   switch (door.position) {
     case 'top':
@@ -168,12 +171,12 @@ const DoorSVG = ({ door, roomWidth, roomHeight, scale, zoom }: {
   
   return (
     <g className={door.isMain ? "text-primary" : "text-foreground"}>
-      <path d={arcPath} fill="none" stroke="currentColor" strokeWidth={door.isMain ? 2 : 1} />
+      <path d={arcPath} fill="none" stroke="currentColor" strokeWidth={door.isMain ? 2 : 1.5} />
       {/* Door opening break in wall */}
       {isHorizontal ? (
-        <line x1={x} y1={y} x2={x + doorWidthPx} y2={y} stroke="hsl(var(--background))" strokeWidth={4} />
+        <line x1={x} y1={y} x2={x + doorWidthPx} y2={y} stroke="hsl(var(--background))" strokeWidth={6} />
       ) : (
-        <line x1={x} y1={y} x2={x} y2={y + doorWidthPx} stroke="hsl(var(--background))" strokeWidth={4} />
+        <line x1={x} y1={y} x2={x} y2={y + doorWidthPx} stroke="hsl(var(--background))" strokeWidth={6} />
       )}
     </g>
   );
@@ -215,16 +218,19 @@ const WindowSVG = ({ window, roomWidth, roomHeight, scale, zoom }: {
   return (
     <g className="text-primary">
       {/* Window opening */}
-      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="hsl(var(--background))" strokeWidth={4} />
-      {/* Window frame lines */}
+      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="hsl(var(--background))" strokeWidth={5} />
+      {/* Window frame - double lines */}
       <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="currentColor" strokeWidth={2} />
-      {/* Window cross */}
       {isHorizontal ? (
         <>
+          <line x1={x1 + 2} y1={y1 - 2} x2={x2 - 2} y2={y2 - 2} stroke="currentColor" strokeWidth={1} />
+          <line x1={x1 + 2} y1={y1 + 2} x2={x2 - 2} y2={y2 + 2} stroke="currentColor" strokeWidth={1} />
           <line x1={midX} y1={y1 - 3} x2={midX} y2={y1 + 3} stroke="currentColor" strokeWidth={1} />
         </>
       ) : (
         <>
+          <line x1={x1 - 2} y1={y1 + 2} x2={x2 - 2} y2={y2 - 2} stroke="currentColor" strokeWidth={1} />
+          <line x1={x1 + 2} y1={y1 + 2} x2={x2 + 2} y2={y2 - 2} stroke="currentColor" strokeWidth={1} />
           <line x1={x1 - 3} y1={midY} x2={x1 + 3} y2={midY} stroke="currentColor" strokeWidth={1} />
         </>
       )}
@@ -232,105 +238,208 @@ const WindowSVG = ({ window, roomWidth, roomHeight, scale, zoom }: {
   );
 };
 
+// Check if a wall is shared with another room
+const checkAdjacentWall = (room: Room, side: 'top' | 'bottom' | 'left' | 'right', allRooms: Room[]): boolean => {
+  const tolerance = 1; // 1 foot tolerance for adjacency
+  
+  for (const other of allRooms) {
+    if (other.id === room.id || other.floor !== room.floor) continue;
+    
+    switch (side) {
+      case 'top':
+        // Check if another room is directly above (its bottom edge touches our top edge)
+        if (Math.abs((other.y + other.height) - room.y) < tolerance) {
+          const overlapStart = Math.max(room.x, other.x);
+          const overlapEnd = Math.min(room.x + room.width, other.x + other.width);
+          if (overlapEnd - overlapStart > tolerance) return true;
+        }
+        break;
+      case 'bottom':
+        // Check if another room is directly below
+        if (Math.abs(other.y - (room.y + room.height)) < tolerance) {
+          const overlapStart = Math.max(room.x, other.x);
+          const overlapEnd = Math.min(room.x + room.width, other.x + other.width);
+          if (overlapEnd - overlapStart > tolerance) return true;
+        }
+        break;
+      case 'left':
+        // Check if another room is directly to the left
+        if (Math.abs((other.x + other.width) - room.x) < tolerance) {
+          const overlapStart = Math.max(room.y, other.y);
+          const overlapEnd = Math.min(room.y + room.height, other.y + other.height);
+          if (overlapEnd - overlapStart > tolerance) return true;
+        }
+        break;
+      case 'right':
+        // Check if another room is directly to the right
+        if (Math.abs(other.x - (room.x + room.width)) < tolerance) {
+          const overlapStart = Math.max(room.y, other.y);
+          const overlapEnd = Math.min(room.y + room.height, other.y + other.height);
+          if (overlapEnd - overlapStart > tolerance) return true;
+        }
+        break;
+    }
+  }
+  return false;
+};
+
+// Generate default furniture based on room type
+const getDefaultFurniture = (roomType: RoomType): { type: Furniture['type']; x: number; y: number; w: number; h: number; rotation?: number }[] => {
+  switch (roomType) {
+    case 'bedroom':
+      return [
+        { type: 'bed', x: 15, y: 25, w: 55, h: 50 },
+        { type: 'wardrobe', x: 5, y: 5, w: 30, h: 12 },
+      ];
+    case 'bathroom':
+      return [
+        { type: 'toilet', x: 10, y: 55, w: 30, h: 40 },
+        { type: 'shower', x: 55, y: 10, w: 40, h: 40 },
+        { type: 'sink', x: 10, y: 10, w: 35, h: 20 },
+      ];
+    case 'kitchen':
+      return [
+        { type: 'kitchen-counter', x: 5, y: 5, w: 90, h: 20 },
+      ];
+    case 'living':
+      return [
+        { type: 'sofa', x: 15, y: 45, w: 55, h: 30 },
+        { type: 'tv', x: 15, y: 5, w: 45, h: 8 },
+      ];
+    case 'dining':
+      return [
+        { type: 'dining-table', x: 20, y: 20, w: 60, h: 60 },
+      ];
+    case 'garage':
+      return [
+        { type: 'car', x: 15, y: 15, w: 70, h: 70 },
+      ];
+    case 'study':
+      return [
+        { type: 'desk', x: 15, y: 15, w: 55, h: 35 },
+      ];
+    case 'garden':
+    case 'balcony':
+      return [
+        { type: 'plants', x: 15, y: 15, w: 25, h: 25 },
+        { type: 'plants', x: 60, y: 60, w: 25, h: 25 },
+      ];
+    default:
+      return [];
+  }
+};
+
 // Room component with walls, doors, windows, and furniture
-const RoomSVG = ({ room, scale, zoom, wallThickness }: RoomSVGProps) => {
+const RoomSVG = ({ room, scale, zoom, wallThickness, allRooms }: RoomSVGProps) => {
   const x = room.x * scale * zoom;
   const y = room.y * scale * zoom;
   const width = room.width * scale * zoom;
   const height = room.height * scale * zoom;
   
-  // Generate default furniture based on room type
-  const getDefaultFurniture = (): { type: Furniture['type']; x: number; y: number; w: number; h: number; rotation?: number }[] => {
-    switch (room.type) {
-      case 'bedroom':
-        return [
-          { type: 'bed', x: 20, y: 30, w: 60, h: 45 },
-          { type: 'wardrobe', x: 5, y: 5, w: 25, h: 15 },
-        ];
-      case 'bathroom':
-        return [
-          { type: 'toilet', x: 10, y: 60, w: 25, h: 35 },
-          { type: 'shower', x: 50, y: 10, w: 45, h: 45 },
-          { type: 'sink', x: 10, y: 10, w: 30, h: 20 },
-        ];
-      case 'kitchen':
-        return [
-          { type: 'kitchen-counter', x: 5, y: 5, w: 90, h: 25 },
-        ];
-      case 'living':
-        return [
-          { type: 'sofa', x: 10, y: 50, w: 50, h: 25 },
-          { type: 'tv', x: 10, y: 5, w: 40, h: 10 },
-        ];
-      case 'dining':
-        return [
-          { type: 'dining-table', x: 20, y: 20, w: 60, h: 60 },
-        ];
-      case 'garage':
-        return [
-          { type: 'car', x: 15, y: 15, w: 70, h: 70 },
-        ];
-      case 'study':
-        return [
-          { type: 'desk', x: 10, y: 10, w: 50, h: 30 },
-        ];
-      case 'garden':
-      case 'balcony':
-        return [
-          { type: 'plants', x: 20, y: 20, w: 20, h: 20 },
-          { type: 'plants', x: 60, y: 60, w: 20, h: 20 },
-        ];
-      default:
-        return [];
-    }
-  };
+  // Check which walls are interior (shared with other rooms)
+  const isInteriorTop = checkAdjacentWall(room, 'top', allRooms);
+  const isInteriorBottom = checkAdjacentWall(room, 'bottom', allRooms);
+  const isInteriorLeft = checkAdjacentWall(room, 'left', allRooms);
+  const isInteriorRight = checkAdjacentWall(room, 'right', allRooms);
   
-  const furniture = room.furniture || getDefaultFurniture().map((f, i) => ({
-    type: f.type,
-    x: f.x,
-    y: f.y,
-    rotation: f.rotation || 0,
-  }));
+  const defaultFurnitureSizes = getDefaultFurniture(room.type);
   
-  const defaultFurnitureSizes = getDefaultFurniture();
+  // Wall thickness for interior vs exterior
+  const exteriorWallWidth = wallThickness * 1.5;
+  const interiorWallWidth = wallThickness * 0.8;
   
   return (
     <g transform={`translate(${x}, ${y})`}>
       {/* Room fill */}
       <rect
-        x={wallThickness}
-        y={wallThickness}
-        width={width - wallThickness * 2}
-        height={height - wallThickness * 2}
-        fill={room.color || ROOM_COLORS[room.type]}
-        className="opacity-60"
-      />
-      
-      {/* Room walls */}
-      <rect
         x={0}
         y={0}
         width={width}
         height={height}
-        fill="none"
-        stroke="hsl(var(--foreground))"
-        strokeWidth={wallThickness}
+        fill={room.color || ROOM_COLORS[room.type]}
+        className="opacity-70"
       />
       
-      {/* Doors */}
-      {(room.doors || []).map((door, i) => (
-        <DoorSVG
-          key={`door-${i}`}
-          door={door}
-          roomWidth={room.width}
-          roomHeight={room.height}
-          scale={scale}
-          zoom={zoom}
-        />
-      ))}
+      {/* Floor pattern for different room types */}
+      {room.type === 'bathroom' && (
+        <pattern id={`tiles-${room.id}`} width={8} height={8} patternUnits="userSpaceOnUse">
+          <rect width={8} height={8} fill="hsl(195, 60%, 85%)" />
+          <rect x={0} y={0} width={4} height={4} fill="hsl(195, 60%, 80%)" />
+          <rect x={4} y={4} width={4} height={4} fill="hsl(195, 60%, 80%)" />
+        </pattern>
+      )}
+      {room.type === 'bathroom' && (
+        <rect x={2} y={2} width={width - 4} height={height - 4} fill={`url(#tiles-${room.id})`} opacity={0.5} />
+      )}
       
-      {/* Windows */}
-      {(room.windows || []).map((window, i) => (
+      {room.type === 'kitchen' && (
+        <pattern id={`kitchen-${room.id}`} width={12} height={12} patternUnits="userSpaceOnUse">
+          <rect width={12} height={12} fill="hsl(40, 70%, 85%)" />
+          <rect x={0} y={0} width={6} height={6} fill="hsl(40, 70%, 80%)" />
+          <rect x={6} y={6} width={6} height={6} fill="hsl(40, 70%, 80%)" />
+        </pattern>
+      )}
+      {room.type === 'kitchen' && (
+        <rect x={2} y={2} width={width - 4} height={height - 4} fill={`url(#kitchen-${room.id})`} opacity={0.4} />
+      )}
+      
+      {/* Interior wall lines (thinner, for shared walls) */}
+      {isInteriorTop && (
+        <line x1={0} y1={0} x2={width} y2={0} stroke="hsl(var(--foreground))" strokeWidth={interiorWallWidth} />
+      )}
+      {isInteriorBottom && (
+        <line x1={0} y1={height} x2={width} y2={height} stroke="hsl(var(--foreground))" strokeWidth={interiorWallWidth} />
+      )}
+      {isInteriorLeft && (
+        <line x1={0} y1={0} x2={0} y2={height} stroke="hsl(var(--foreground))" strokeWidth={interiorWallWidth} />
+      )}
+      {isInteriorRight && (
+        <line x1={width} y1={0} x2={width} y2={height} stroke="hsl(var(--foreground))" strokeWidth={interiorWallWidth} />
+      )}
+      
+      {/* Exterior walls (thicker) */}
+      {!isInteriorTop && (
+        <line x1={0} y1={0} x2={width} y2={0} stroke="hsl(var(--foreground))" strokeWidth={exteriorWallWidth} />
+      )}
+      {!isInteriorBottom && (
+        <line x1={0} y1={height} x2={width} y2={height} stroke="hsl(var(--foreground))" strokeWidth={exteriorWallWidth} />
+      )}
+      {!isInteriorLeft && (
+        <line x1={0} y1={0} x2={0} y2={height} stroke="hsl(var(--foreground))" strokeWidth={exteriorWallWidth} />
+      )}
+      {!isInteriorRight && (
+        <line x1={width} y1={0} x2={width} y2={height} stroke="hsl(var(--foreground))" strokeWidth={exteriorWallWidth} />
+      )}
+      
+      {/* Doors */}
+      {(room.doors || []).map((door, i) => {
+        const isInteriorDoor = 
+          (door.position === 'top' && isInteriorTop) ||
+          (door.position === 'bottom' && isInteriorBottom) ||
+          (door.position === 'left' && isInteriorLeft) ||
+          (door.position === 'right' && isInteriorRight);
+        
+        return (
+          <DoorSVG
+            key={`door-${i}`}
+            door={door}
+            roomWidth={room.width}
+            roomHeight={room.height}
+            scale={scale}
+            zoom={zoom}
+            isInteriorWall={isInteriorDoor}
+          />
+        );
+      })}
+      
+      {/* Windows (only on exterior walls) */}
+      {(room.windows || []).filter(w => {
+        if (w.position === 'top' && isInteriorTop) return false;
+        if (w.position === 'bottom' && isInteriorBottom) return false;
+        if (w.position === 'left' && isInteriorLeft) return false;
+        if (w.position === 'right' && isInteriorRight) return false;
+        return true;
+      }).map((window, i) => (
         <WindowSVG
           key={`window-${i}`}
           window={window}
@@ -346,10 +455,10 @@ const RoomSVG = ({ room, scale, zoom, wallThickness }: RoomSVGProps) => {
         <FurnitureIcon
           key={`furniture-${i}`}
           type={f.type}
-          x={(f.x / 100) * (width - wallThickness * 2) + wallThickness}
-          y={(f.y / 100) * (height - wallThickness * 2) + wallThickness}
-          width={(f.w / 100) * (width - wallThickness * 2)}
-          height={(f.h / 100) * (height - wallThickness * 2)}
+          x={(f.x / 100) * width}
+          y={(f.y / 100) * height}
+          width={(f.w / 100) * width}
+          height={(f.h / 100) * height}
           rotation={f.rotation}
         />
       ))}
@@ -357,11 +466,11 @@ const RoomSVG = ({ room, scale, zoom, wallThickness }: RoomSVGProps) => {
       {/* Room label */}
       <text
         x={width / 2}
-        y={height / 2}
+        y={height / 2 - 6}
         textAnchor="middle"
         dominantBaseline="middle"
-        className="fill-foreground font-medium pointer-events-none"
-        style={{ fontSize: Math.max(10, Math.min(14, width / 8)) }}
+        className="fill-foreground font-semibold pointer-events-none"
+        style={{ fontSize: Math.max(9, Math.min(13, width / 7)) }}
       >
         {room.name}
       </text>
@@ -369,13 +478,25 @@ const RoomSVG = ({ room, scale, zoom, wallThickness }: RoomSVGProps) => {
       {/* Room dimensions */}
       <text
         x={width / 2}
-        y={height / 2 + 14}
+        y={height / 2 + 8}
         textAnchor="middle"
         dominantBaseline="middle"
         className="fill-muted-foreground pointer-events-none"
-        style={{ fontSize: Math.max(8, Math.min(10, width / 10)) }}
+        style={{ fontSize: Math.max(7, Math.min(10, width / 9)) }}
       >
-        {room.width}' × {room.height}'
+        {room.width.toFixed(0)}' × {room.height.toFixed(0)}'
+      </text>
+      
+      {/* Room area */}
+      <text
+        x={width / 2}
+        y={height / 2 + 18}
+        textAnchor="middle"
+        dominantBaseline="middle"
+        className="fill-muted-foreground/70 pointer-events-none"
+        style={{ fontSize: Math.max(6, Math.min(8, width / 10)) }}
+      >
+        {(room.width * room.height).toFixed(0)} sq ft
       </text>
     </g>
   );

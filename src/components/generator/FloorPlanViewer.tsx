@@ -263,6 +263,7 @@ const FloorPlanViewer = ({ planData, layout, onReset }: FloorPlanViewerProps) =>
                       scale={scale}
                       zoom={zoom}
                       wallThickness={wallThickness}
+                      allRooms={floorRooms}
                     />
                   ))}
                 </svg>

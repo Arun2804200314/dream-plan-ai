@@ -118,9 +118,36 @@ const findAdjacentRoom = (
 };
 
 // For shared walls, render the wall only once to avoid z-fighting.
+// IMPORTANT: A room wall can be only partially shared (e.g., a large room adjacent to multiple smaller rooms).
+// If we dedupe purely by id, the "larger" wall segments may disappear. Prefer rendering the longer wall.
+const getWallLengthFeet = (room: Room, side: 'top' | 'bottom' | 'left' | 'right') => {
+  return side === 'top' || side === 'bottom' ? room.width : room.height;
+};
+
+const getOppositeSide = (side: 'top' | 'bottom' | 'left' | 'right') => {
+  switch (side) {
+    case 'top':
+      return 'bottom';
+    case 'bottom':
+      return 'top';
+    case 'left':
+      return 'right';
+    case 'right':
+      return 'left';
+  }
+};
+
 const isPrimarySharedWall = (room: Room, side: 'top' | 'bottom' | 'left' | 'right', allRooms: Room[]) => {
   const adjacent = findAdjacentRoom(room, side, allRooms);
   if (!adjacent) return true;
+
+  const roomLen = getWallLengthFeet(room, side);
+  const adjacentLen = getWallLengthFeet(adjacent, getOppositeSide(side));
+
+  // Prefer rendering the longer wall to avoid "missing" wall segments on partial adjacency.
+  if (Math.abs(roomLen - adjacentLen) > 0.25) return roomLen > adjacentLen;
+
+  // Tie-breaker: stable ordering
   return room.id < adjacent.id;
 };
 

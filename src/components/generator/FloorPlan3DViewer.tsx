@@ -336,7 +336,13 @@ function Room3D({ room, plotWidth, plotLength, floorHeight, allRooms }: Room3DPr
   const bottomWall = getDoorWindowsForWall('bottom');
   const leftWall = getDoorWindowsForWall('left');
   const rightWall = getDoorWindowsForWall('right');
-  
+
+  // Determine which walls this room should render (to avoid duplicate shared walls)
+  const renderTop = !isInteriorTop || isPrimarySharedWall(room, 'top', allRooms);
+  const renderBottom = !isInteriorBottom || isPrimarySharedWall(room, 'bottom', allRooms);
+  const renderLeft = !isInteriorLeft || isPrimarySharedWall(room, 'left', allRooms);
+  const renderRight = !isInteriorRight || isPrimarySharedWall(room, 'right', allRooms);
+
   return (
     <group position={[x + width / 2, baseY, z + depth / 2]}>
       {/* Floor */}
@@ -344,24 +350,18 @@ function Room3D({ room, plotWidth, plotLength, floorHeight, allRooms }: Room3DPr
         <planeGeometry args={[width, depth]} />
         <meshStandardMaterial color={materials.floor} />
       </mesh>
-      
+
       {/* Floor border/skirting */}
       <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[width - 0.02, depth - 0.02]} />
         <meshStandardMaterial color={materials.floor} />
       </mesh>
-      
+
       {/* Ceiling */}
       <mesh position={[0, floorHeight - 0.02, 0]} rotation={[Math.PI / 2, 0, 0]}>
         <planeGeometry args={[width, depth]} />
         <meshStandardMaterial color="#ffffff" />
       </mesh>
-      
-      {/* Walls */}
-      const renderTop = !isInteriorTop || isPrimarySharedWall(room, 'top', allRooms);
-      const renderBottom = !isInteriorBottom || isPrimarySharedWall(room, 'bottom', allRooms);
-      const renderLeft = !isInteriorLeft || isPrimarySharedWall(room, 'left', allRooms);
-      const renderRight = !isInteriorRight || isPrimarySharedWall(room, 'right', allRooms);
 
       {/* Front wall (negative Z / top in 2D) */}
       {renderTop && (

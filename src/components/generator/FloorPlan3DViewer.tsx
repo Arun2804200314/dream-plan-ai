@@ -23,6 +23,9 @@ const getRoomMaterial = (type: RoomType) => {
     staircase: { floor: '#b0b0b0', wall: '#f0f0f0' },
     pooja: { floor: '#e8d090', wall: '#fcf8e0' },
     study: { floor: '#b8c8e0', wall: '#f0f5fc' },
+    utility: { floor: '#c0d0e0', wall: '#f2f6fb' },
+    store: { floor: '#d9cbb8', wall: '#fbf7f2' },
+    wardrobe: { floor: '#d9cfe6', wall: '#f8f6fc' },
   };
   return colors[type] || { floor: '#d0d0d0', wall: '#f5f5f5' };
 };
@@ -30,10 +33,10 @@ const getRoomMaterial = (type: RoomType) => {
 // Check if a wall is shared with another room
 const checkAdjacentWall = (room: Room, side: 'top' | 'bottom' | 'left' | 'right', allRooms: Room[]): boolean => {
   const tolerance = 1;
-  
+
   for (const other of allRooms) {
     if (other.id === room.id || other.floor !== room.floor) continue;
-    
+
     switch (side) {
       case 'top':
         if (Math.abs((other.y + other.height) - room.y) < tolerance) {
@@ -66,6 +69,59 @@ const checkAdjacentWall = (room: Room, side: 'top' | 'bottom' | 'left' | 'right'
     }
   }
   return false;
+};
+
+// Find the adjacent room sharing a wall segment (same floor). Returns the first match.
+const findAdjacentRoom = (
+  room: Room,
+  side: 'top' | 'bottom' | 'left' | 'right',
+  allRooms: Room[]
+): Room | null => {
+  const tolerance = 1;
+
+  for (const other of allRooms) {
+    if (other.id === room.id || other.floor !== room.floor) continue;
+
+    switch (side) {
+      case 'top':
+        if (Math.abs((other.y + other.height) - room.y) < tolerance) {
+          const overlapStart = Math.max(room.x, other.x);
+          const overlapEnd = Math.min(room.x + room.width, other.x + other.width);
+          if (overlapEnd - overlapStart > tolerance) return other;
+        }
+        break;
+      case 'bottom':
+        if (Math.abs(other.y - (room.y + room.height)) < tolerance) {
+          const overlapStart = Math.max(room.x, other.x);
+          const overlapEnd = Math.min(room.x + room.width, other.x + other.width);
+          if (overlapEnd - overlapStart > tolerance) return other;
+        }
+        break;
+      case 'left':
+        if (Math.abs((other.x + other.width) - room.x) < tolerance) {
+          const overlapStart = Math.max(room.y, other.y);
+          const overlapEnd = Math.min(room.y + room.height, other.y + other.height);
+          if (overlapEnd - overlapStart > tolerance) return other;
+        }
+        break;
+      case 'right':
+        if (Math.abs(other.x - (room.x + room.width)) < tolerance) {
+          const overlapStart = Math.max(room.y, other.y);
+          const overlapEnd = Math.min(room.y + room.height, other.y + other.height);
+          if (overlapEnd - overlapStart > tolerance) return other;
+        }
+        break;
+    }
+  }
+
+  return null;
+};
+
+// For shared walls, render the wall only once to avoid z-fighting.
+const isPrimarySharedWall = (room: Room, side: 'top' | 'bottom' | 'left' | 'right', allRooms: Room[]) => {
+  const adjacent = findAdjacentRoom(room, side, allRooms);
+  if (!adjacent) return true;
+  return room.id < adjacent.id;
 };
 
 interface WallSegmentProps {
@@ -301,9 +357,14 @@ function Room3D({ room, plotWidth, plotLength, floorHeight, allRooms }: Room3DPr
         <meshStandardMaterial color="#ffffff" />
       </mesh>
       
-      {/* Walls - only render if not shared (interior) OR if it's shared but we're the "primary" room */}
+      {/* Walls */}
+      const renderTop = !isInteriorTop || isPrimarySharedWall(room, 'top', allRooms);
+      const renderBottom = !isInteriorBottom || isPrimarySharedWall(room, 'bottom', allRooms);
+      const renderLeft = !isInteriorLeft || isPrimarySharedWall(room, 'left', allRooms);
+      const renderRight = !isInteriorRight || isPrimarySharedWall(room, 'right', allRooms);
+
       {/* Front wall (negative Z / top in 2D) */}
-      {!isInteriorTop && (
+      {renderTop && (
         <WallWithOpenings
           start={[-width / 2, -depth / 2]}
           end={[width / 2, -depth / 2]}
@@ -311,25 +372,13 @@ function Room3D({ room, plotWidth, plotLength, floorHeight, allRooms }: Room3DPr
           thickness={WALL_THICKNESS}
           color={materials.wall}
           doors={topWall.doors}
-          windows={topWall.windows}
-          isInterior={false}
+          windows={isInteriorTop ? [] : topWall.windows}
+          isInterior={isInteriorTop}
         />
       )}
-      {isInteriorTop && (topWall.doors.length > 0 || topWall.windows.length > 0) && (
-        <WallWithOpenings
-          start={[-width / 2, -depth / 2]}
-          end={[width / 2, -depth / 2]}
-          height={floorHeight}
-          thickness={WALL_THICKNESS}
-          color={materials.wall}
-          doors={topWall.doors}
-          windows={[]}
-          isInterior={true}
-        />
-      )}
-      
+
       {/* Back wall (positive Z / bottom in 2D) */}
-      {!isInteriorBottom && (
+      {renderBottom && (
         <WallWithOpenings
           start={[-width / 2, depth / 2]}
           end={[width / 2, depth / 2]}
@@ -337,25 +386,13 @@ function Room3D({ room, plotWidth, plotLength, floorHeight, allRooms }: Room3DPr
           thickness={WALL_THICKNESS}
           color={materials.wall}
           doors={bottomWall.doors}
-          windows={bottomWall.windows}
-          isInterior={false}
+          windows={isInteriorBottom ? [] : bottomWall.windows}
+          isInterior={isInteriorBottom}
         />
       )}
-      {isInteriorBottom && (bottomWall.doors.length > 0 || bottomWall.windows.length > 0) && (
-        <WallWithOpenings
-          start={[-width / 2, depth / 2]}
-          end={[width / 2, depth / 2]}
-          height={floorHeight}
-          thickness={WALL_THICKNESS}
-          color={materials.wall}
-          doors={bottomWall.doors}
-          windows={[]}
-          isInterior={true}
-        />
-      )}
-      
+
       {/* Left wall (negative X) */}
-      {!isInteriorLeft && (
+      {renderLeft && (
         <WallWithOpenings
           start={[-width / 2, -depth / 2]}
           end={[-width / 2, depth / 2]}
@@ -363,25 +400,13 @@ function Room3D({ room, plotWidth, plotLength, floorHeight, allRooms }: Room3DPr
           thickness={WALL_THICKNESS}
           color={materials.wall}
           doors={leftWall.doors}
-          windows={leftWall.windows}
-          isInterior={false}
+          windows={isInteriorLeft ? [] : leftWall.windows}
+          isInterior={isInteriorLeft}
         />
       )}
-      {isInteriorLeft && (leftWall.doors.length > 0 || leftWall.windows.length > 0) && (
-        <WallWithOpenings
-          start={[-width / 2, -depth / 2]}
-          end={[-width / 2, depth / 2]}
-          height={floorHeight}
-          thickness={WALL_THICKNESS}
-          color={materials.wall}
-          doors={leftWall.doors}
-          windows={[]}
-          isInterior={true}
-        />
-      )}
-      
+
       {/* Right wall (positive X) */}
-      {!isInteriorRight && (
+      {renderRight && (
         <WallWithOpenings
           start={[width / 2, -depth / 2]}
           end={[width / 2, depth / 2]}
@@ -389,24 +414,10 @@ function Room3D({ room, plotWidth, plotLength, floorHeight, allRooms }: Room3DPr
           thickness={WALL_THICKNESS}
           color={materials.wall}
           doors={rightWall.doors}
-          windows={rightWall.windows}
-          isInterior={false}
+          windows={isInteriorRight ? [] : rightWall.windows}
+          isInterior={isInteriorRight}
         />
       )}
-      {isInteriorRight && (rightWall.doors.length > 0 || rightWall.windows.length > 0) && (
-        <WallWithOpenings
-          start={[width / 2, -depth / 2]}
-          end={[width / 2, depth / 2]}
-          height={floorHeight}
-          thickness={WALL_THICKNESS}
-          color={materials.wall}
-          doors={rightWall.doors}
-          windows={[]}
-          isInterior={true}
-        />
-      )}
-      
-      {/* Room label */}
       <Text
         position={[0, floorHeight + 0.3, 0]}
         fontSize={0.4}

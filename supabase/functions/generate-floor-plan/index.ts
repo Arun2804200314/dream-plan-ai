@@ -149,12 +149,12 @@ Return ONLY the JSON object.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        temperature: 0.5, // Lower temperature for more consistent layouts
+        temperature: 0.4, // Lower temperature for more consistent layouts
       }),
     });
 

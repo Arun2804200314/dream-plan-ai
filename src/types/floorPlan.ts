@@ -1,4 +1,4 @@
-export type RoomType = 'bedroom' | 'bathroom' | 'kitchen' | 'living' | 'dining' | 'garage' | 'balcony' | 'garden' | 'hallway' | 'staircase' | 'pooja' | 'study';
+export type RoomType = 'bedroom' | 'bathroom' | 'kitchen' | 'living' | 'dining' | 'garage' | 'balcony' | 'garden' | 'hallway' | 'staircase' | 'pooja' | 'study' | 'utility' | 'store' | 'wardrobe';
 
 export type DoorPosition = 'top' | 'bottom' | 'left' | 'right';
 export type WindowPosition = 'top' | 'bottom' | 'left' | 'right';
@@ -100,6 +100,9 @@ export const ROOM_COLORS: Record<RoomType, string> = {
   staircase: 'hsl(0, 0%, 75%)',
   pooja: 'hsl(45, 70%, 85%)',
   study: 'hsl(220, 40%, 85%)',
+  utility: 'hsl(200, 30%, 88%)',
+  store: 'hsl(25, 30%, 85%)',
+  wardrobe: 'hsl(280, 30%, 88%)',
 };
 
 // Minimum room sizes (in sq ft) for validation
@@ -116,4 +119,7 @@ export const MIN_ROOM_SIZES: Record<RoomType, number> = {
   staircase: 25,
   pooja: 20,
   study: 80,
+  utility: 30,
+  store: 25,
+  wardrobe: 20,
 };

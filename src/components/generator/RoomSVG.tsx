@@ -172,12 +172,6 @@ const DoorSVG = ({ door, roomWidth, roomHeight, scale, zoom, isInteriorWall }: {
   return (
     <g className={door.isMain ? "text-primary" : "text-foreground"}>
       <path d={arcPath} fill="none" stroke="currentColor" strokeWidth={door.isMain ? 2 : 1.5} />
-      {/* Door opening break in wall */}
-      {isHorizontal ? (
-        <line x1={x} y1={y} x2={x + doorWidthPx} y2={y} stroke="hsl(var(--background))" strokeWidth={6} />
-      ) : (
-        <line x1={x} y1={y} x2={x} y2={y + doorWidthPx} stroke="hsl(var(--background))" strokeWidth={6} />
-      )}
     </g>
   );
 };
@@ -217,8 +211,6 @@ const WindowSVG = ({ window, roomWidth, roomHeight, scale, zoom }: {
   
   return (
     <g className="text-primary">
-      {/* Window opening */}
-      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="hsl(var(--background))" strokeWidth={5} />
       {/* Window frame - double lines */}
       <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="currentColor" strokeWidth={2} />
       {isHorizontal ? (

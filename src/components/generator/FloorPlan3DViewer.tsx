@@ -1,4 +1,4 @@
-import { Suspense, useRef, useMemo } from 'react';
+import { Suspense, useRef, useMemo, useState, createContext, useContext } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, Text } from '@react-three/drei';
 import { Room, GeneratedLayout, RoomType } from '@/types/floorPlan';
@@ -7,6 +7,16 @@ import * as THREE from 'three';
 const WALL_HEIGHT = 3; // meters
 const WALL_THICKNESS = 0.12; // meters (thinner walls)
 const SCALE = 0.3048; // feet to meters
+
+// Debug context to pass debug mode down to wall components
+const DebugContext = createContext<{ debugMode: boolean }>({ debugMode: false });
+
+// Debug colors for wall types
+const DEBUG_COLORS = {
+  exterior: '#4ade80', // green - exterior walls
+  shared: '#f97316',   // orange - shared interior walls  
+  sharedOwned: '#3b82f6', // blue - shared wall owned by this room
+};
 
 // Room materials based on type
 const getRoomMaterial = (type: RoomType) => {
@@ -182,9 +192,12 @@ interface WallWithOpeningsProps {
   doors: { offset: number; width: number }[];
   windows: { offset: number; width: number }[];
   isInterior: boolean;
+  debugColor?: string;
+  debugLabel?: string;
 }
 
-function WallWithOpenings({ start, end, height, thickness, color, doors, windows, isInterior }: WallWithOpeningsProps) {
+function WallWithOpenings({ start, end, height, thickness, color, doors, windows, isInterior, debugColor, debugLabel }: WallWithOpeningsProps) {
+  const { debugMode } = useContext(DebugContext);
   const length = Math.sqrt(Math.pow(end[0] - start[0], 2) + Math.pow(end[1] - start[1], 2));
   const angle = Math.atan2(end[1] - start[1], end[0] - start[0]);
   const midX = (start[0] + end[0]) / 2;
@@ -194,6 +207,9 @@ function WallWithOpenings({ start, end, height, thickness, color, doors, windows
   const windowHeight = 1.0;
   const windowBottom = 1.0;
   const wallThick = isInterior ? thickness * 0.7 : thickness;
+  
+  // Use debug color if in debug mode
+  const wallColor = debugMode && debugColor ? debugColor : color;
   
   // Collect all openings
   type Opening = { start: number; end: number; type: 'door' | 'window' };
@@ -226,7 +242,7 @@ function WallWithOpenings({ start, end, height, thickness, color, doors, windows
           key={`wall-${i}-before`}
           position={[-(length / 2) + currentPos + segLen / 2, height / 2, 0]}
           size={[segLen, height, wallThick]}
-          color={color}
+          color={wallColor}
         />
       );
     }
@@ -242,7 +258,7 @@ function WallWithOpenings({ start, end, height, thickness, color, doors, windows
             key={`door-above-${i}`}
             position={[-(length / 2) + opening.start + openingWidth / 2, height - aboveHeight / 2, 0]}
             size={[openingWidth, aboveHeight, wallThick]}
-            color={color}
+            color={wallColor}
           />
         );
       }
@@ -271,7 +287,7 @@ function WallWithOpenings({ start, end, height, thickness, color, doors, windows
           key={`win-below-${i}`}
           position={[-(length / 2) + opening.start + openingWidth / 2, windowBottom / 2, 0]}
           size={[openingWidth, windowBottom, wallThick]}
-          color={color}
+          color={wallColor}
         />
       );
       // Wall above window
@@ -282,7 +298,7 @@ function WallWithOpenings({ start, end, height, thickness, color, doors, windows
             key={`win-above-${i}`}
             position={[-(length / 2) + opening.start + openingWidth / 2, windowBottom + windowHeight + aboveHeight / 2, 0]}
             size={[openingWidth, aboveHeight, wallThick]}
-            color={color}
+            color={wallColor}
           />
         );
       }
@@ -313,24 +329,47 @@ function WallWithOpenings({ start, end, height, thickness, color, doors, windows
         key="wall-end"
         position={[-(length / 2) + currentPos + segLen / 2, height / 2, 0]}
         size={[segLen, height, wallThick]}
-        color={color}
+        color={wallColor}
       />
     );
   }
   
+  // Debug label for shared walls
+  const debugLabelElement = debugMode && debugLabel ? (
+    <Text
+      position={[0, height + 0.15, 0]}
+      fontSize={0.15}
+      color="#000000"
+      anchorX="center"
+      anchorY="middle"
+      outlineWidth={0.01}
+      outlineColor="#ffffff"
+    >
+      {debugLabel}
+    </Text>
+  ) : null;
+  
   // If no openings, render full wall
   if (openings.length === 0) {
     return (
-      <mesh position={[midX, height / 2, midZ]} rotation={[0, -angle, 0]} castShadow receiveShadow>
-        <boxGeometry args={[length, height, wallThick]} />
-        <meshStandardMaterial color={color} />
-      </mesh>
+      <group>
+        <mesh position={[midX, height / 2, midZ]} rotation={[0, -angle, 0]} castShadow receiveShadow>
+          <boxGeometry args={[length, height, wallThick]} />
+          <meshStandardMaterial color={wallColor} />
+        </mesh>
+        {debugLabelElement && (
+          <group position={[midX, 0, midZ]} rotation={[0, -angle, 0]}>
+            {debugLabelElement}
+          </group>
+        )}
+      </group>
     );
   }
   
   return (
     <group position={[midX, 0, midZ]} rotation={[0, -angle, 0]}>
       {segments}
+      {debugLabelElement}
     </group>
   );
 }
@@ -377,6 +416,17 @@ function SegmentedWall({
     if (!shouldRenderSharedSegment(room.id, segment.adjacentRoomId)) {
       return null;
     }
+  }
+  
+  // Determine debug color and label
+  let debugColor: string | undefined;
+  let debugLabel: string | undefined;
+  
+  if (segment.isShared) {
+    debugColor = DEBUG_COLORS.sharedOwned;
+    debugLabel = `${room.name.slice(0, 8)}→${segment.adjacentRoomId?.slice(0, 4) || '?'}`;
+  } else {
+    debugColor = DEBUG_COLORS.exterior;
   }
   
   // Filter doors/windows that fall within this segment
@@ -430,6 +480,8 @@ function SegmentedWall({
       doors={segmentDoors}
       windows={segmentWindows}
       isInterior={segment.isShared}
+      debugColor={debugColor}
+      debugLabel={debugLabel}
     />
   );
 }
@@ -853,52 +905,82 @@ interface FloorPlan3DViewerProps {
 }
 
 const FloorPlan3DViewer = ({ layout, plotWidth, plotLength, floors }: FloorPlan3DViewerProps) => {
+  const [debugMode, setDebugMode] = useState(false);
   const cameraDistance = Math.max(plotWidth, plotLength) * SCALE * 1.5;
   
   return (
     <div className="w-full h-[500px] bg-gradient-to-b from-sky-200 to-sky-400 rounded-lg overflow-hidden relative">
-      <Canvas shadows>
-        <Suspense fallback={null}>
-          <PerspectiveCamera 
-            makeDefault 
-            position={[cameraDistance, cameraDistance * 0.8, cameraDistance]} 
-            fov={45} 
-          />
-          <OrbitControls 
-            enablePan 
-            enableZoom 
-            enableRotate
-            minDistance={cameraDistance * 0.3}
-            maxDistance={cameraDistance * 3}
-            maxPolarAngle={Math.PI / 2.1}
-            target={[0, floors * WALL_HEIGHT / 2, 0]}
-          />
-          
-          {/* Lighting */}
-          <ambientLight intensity={0.6} />
-          <directionalLight 
-            position={[15, 25, 15]} 
-            intensity={1.0} 
-            castShadow
-            shadow-mapSize-width={2048}
-            shadow-mapSize-height={2048}
-            shadow-camera-far={80}
-            shadow-camera-left={-25}
-            shadow-camera-right={25}
-            shadow-camera-top={25}
-            shadow-camera-bottom={-25}
-          />
-          <directionalLight position={[-10, 15, -10]} intensity={0.3} />
-          <hemisphereLight args={['#87ceeb', '#7cb342', 0.4]} />
-          
-          <Building 
-            layout={layout} 
-            plotWidth={plotWidth} 
-            plotLength={plotLength}
-            floors={floors}
-          />
-        </Suspense>
-      </Canvas>
+      <DebugContext.Provider value={{ debugMode }}>
+        <Canvas shadows>
+          <Suspense fallback={null}>
+            <PerspectiveCamera 
+              makeDefault 
+              position={[cameraDistance, cameraDistance * 0.8, cameraDistance]} 
+              fov={45} 
+            />
+            <OrbitControls 
+              enablePan 
+              enableZoom 
+              enableRotate
+              minDistance={cameraDistance * 0.3}
+              maxDistance={cameraDistance * 3}
+              maxPolarAngle={Math.PI / 2.1}
+              target={[0, floors * WALL_HEIGHT / 2, 0]}
+            />
+            
+            {/* Lighting */}
+            <ambientLight intensity={0.6} />
+            <directionalLight 
+              position={[15, 25, 15]} 
+              intensity={1.0} 
+              castShadow
+              shadow-mapSize-width={2048}
+              shadow-mapSize-height={2048}
+              shadow-camera-far={80}
+              shadow-camera-left={-25}
+              shadow-camera-right={25}
+              shadow-camera-top={25}
+              shadow-camera-bottom={-25}
+            />
+            <directionalLight position={[-10, 15, -10]} intensity={0.3} />
+            <hemisphereLight args={['#87ceeb', '#7cb342', 0.4]} />
+            
+            <Building 
+              layout={layout} 
+              plotWidth={plotWidth} 
+              plotLength={plotLength}
+              floors={floors}
+            />
+          </Suspense>
+        </Canvas>
+      </DebugContext.Provider>
+      
+      {/* Debug toggle */}
+      <button
+        onClick={() => setDebugMode(!debugMode)}
+        className={`absolute top-3 right-3 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+          debugMode 
+            ? 'bg-primary text-primary-foreground' 
+            : 'bg-background/80 text-foreground hover:bg-background'
+        } backdrop-blur-sm`}
+      >
+        {debugMode ? '🔍 Debug ON' : '🔍 Debug'}
+      </button>
+      
+      {/* Debug legend */}
+      {debugMode && (
+        <div className="absolute top-12 right-3 bg-background/90 backdrop-blur-sm px-3 py-2 rounded-md text-xs space-y-1">
+          <div className="font-medium text-foreground mb-1">Wall Types:</div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: DEBUG_COLORS.exterior }} />
+            <span className="text-muted-foreground">Exterior</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: DEBUG_COLORS.sharedOwned }} />
+            <span className="text-muted-foreground">Shared (owner)</span>
+          </div>
+        </div>
+      )}
       
       <div className="absolute bottom-3 left-3 bg-background/80 backdrop-blur-sm px-3 py-1.5 rounded-md text-xs text-muted-foreground">
         Drag to rotate • Scroll to zoom • Shift+Drag to pan

@@ -30,125 +30,131 @@ const getRoomMaterial = (type: RoomType) => {
   return colors[type] || { floor: '#d0d0d0', wall: '#f5f5f5' };
 };
 
-// Check if a wall is shared with another room
-const checkAdjacentWall = (room: Room, side: 'top' | 'bottom' | 'left' | 'right', allRooms: Room[]): boolean => {
-  const tolerance = 1;
+// Wall segment represents a portion of a wall with its properties
+interface WallSegmentInfo {
+  start: number; // Position along the wall (0 to wallLength)
+  end: number;
+  isShared: boolean;
+  adjacentRoomId?: string;
+}
 
-  for (const other of allRooms) {
-    if (other.id === room.id || other.floor !== room.floor) continue;
-
-    switch (side) {
-      case 'top':
-        if (Math.abs((other.y + other.height) - room.y) < tolerance) {
-          const overlapStart = Math.max(room.x, other.x);
-          const overlapEnd = Math.min(room.x + room.width, other.x + other.width);
-          if (overlapEnd - overlapStart > tolerance) return true;
-        }
-        break;
-      case 'bottom':
-        if (Math.abs(other.y - (room.y + room.height)) < tolerance) {
-          const overlapStart = Math.max(room.x, other.x);
-          const overlapEnd = Math.min(room.x + room.width, other.x + other.width);
-          if (overlapEnd - overlapStart > tolerance) return true;
-        }
-        break;
-      case 'left':
-        if (Math.abs((other.x + other.width) - room.x) < tolerance) {
-          const overlapStart = Math.max(room.y, other.y);
-          const overlapEnd = Math.min(room.y + room.height, other.y + other.height);
-          if (overlapEnd - overlapStart > tolerance) return true;
-        }
-        break;
-      case 'right':
-        if (Math.abs(other.x - (room.x + room.width)) < tolerance) {
-          const overlapStart = Math.max(room.y, other.y);
-          const overlapEnd = Math.min(room.y + room.height, other.y + other.height);
-          if (overlapEnd - overlapStart > tolerance) return true;
-        }
-        break;
-    }
-  }
-  return false;
-};
-
-// Find the adjacent room sharing a wall segment (same floor). Returns the first match.
-const findAdjacentRoom = (
+// Get all adjacent rooms for a wall and their overlap ranges
+const getAdjacentSegments = (
   room: Room,
   side: 'top' | 'bottom' | 'left' | 'right',
   allRooms: Room[]
-): Room | null => {
-  const tolerance = 1;
+): WallSegmentInfo[] => {
+  const tolerance = 0.5;
+  const wallLength = side === 'top' || side === 'bottom' ? room.width : room.height;
+  const segments: WallSegmentInfo[] = [];
 
   for (const other of allRooms) {
     if (other.id === room.id || other.floor !== room.floor) continue;
 
+    let overlapStart = 0;
+    let overlapEnd = 0;
+    let isAdjacent = false;
+
     switch (side) {
       case 'top':
         if (Math.abs((other.y + other.height) - room.y) < tolerance) {
-          const overlapStart = Math.max(room.x, other.x);
-          const overlapEnd = Math.min(room.x + room.width, other.x + other.width);
-          if (overlapEnd - overlapStart > tolerance) return other;
+          const absOverlapStart = Math.max(room.x, other.x);
+          const absOverlapEnd = Math.min(room.x + room.width, other.x + other.width);
+          if (absOverlapEnd - absOverlapStart > tolerance) {
+            overlapStart = absOverlapStart - room.x;
+            overlapEnd = absOverlapEnd - room.x;
+            isAdjacent = true;
+          }
         }
         break;
       case 'bottom':
         if (Math.abs(other.y - (room.y + room.height)) < tolerance) {
-          const overlapStart = Math.max(room.x, other.x);
-          const overlapEnd = Math.min(room.x + room.width, other.x + other.width);
-          if (overlapEnd - overlapStart > tolerance) return other;
+          const absOverlapStart = Math.max(room.x, other.x);
+          const absOverlapEnd = Math.min(room.x + room.width, other.x + other.width);
+          if (absOverlapEnd - absOverlapStart > tolerance) {
+            overlapStart = absOverlapStart - room.x;
+            overlapEnd = absOverlapEnd - room.x;
+            isAdjacent = true;
+          }
         }
         break;
       case 'left':
         if (Math.abs((other.x + other.width) - room.x) < tolerance) {
-          const overlapStart = Math.max(room.y, other.y);
-          const overlapEnd = Math.min(room.y + room.height, other.y + other.height);
-          if (overlapEnd - overlapStart > tolerance) return other;
+          const absOverlapStart = Math.max(room.y, other.y);
+          const absOverlapEnd = Math.min(room.y + room.height, other.y + other.height);
+          if (absOverlapEnd - absOverlapStart > tolerance) {
+            overlapStart = absOverlapStart - room.y;
+            overlapEnd = absOverlapEnd - room.y;
+            isAdjacent = true;
+          }
         }
         break;
       case 'right':
         if (Math.abs(other.x - (room.x + room.width)) < tolerance) {
-          const overlapStart = Math.max(room.y, other.y);
-          const overlapEnd = Math.min(room.y + room.height, other.y + other.height);
-          if (overlapEnd - overlapStart > tolerance) return other;
+          const absOverlapStart = Math.max(room.y, other.y);
+          const absOverlapEnd = Math.min(room.y + room.height, other.y + other.height);
+          if (absOverlapEnd - absOverlapStart > tolerance) {
+            overlapStart = absOverlapStart - room.y;
+            overlapEnd = absOverlapEnd - room.y;
+            isAdjacent = true;
+          }
         }
         break;
     }
+
+    if (isAdjacent) {
+      segments.push({
+        start: Math.max(0, overlapStart),
+        end: Math.min(wallLength, overlapEnd),
+        isShared: true,
+        adjacentRoomId: other.id,
+      });
+    }
   }
 
-  return null;
+  return segments;
 };
 
-// For shared walls, render the wall only once to avoid z-fighting.
-// IMPORTANT: A room wall can be only partially shared (e.g., a large room adjacent to multiple smaller rooms).
-// If we dedupe purely by id, the "larger" wall segments may disappear. Prefer rendering the longer wall.
-const getWallLengthFeet = (room: Room, side: 'top' | 'bottom' | 'left' | 'right') => {
-  return side === 'top' || side === 'bottom' ? room.width : room.height;
-};
+// Build complete wall segments (shared and exterior) for a wall
+const buildWallSegments = (
+  room: Room,
+  side: 'top' | 'bottom' | 'left' | 'right',
+  allRooms: Room[]
+): WallSegmentInfo[] => {
+  const wallLength = side === 'top' || side === 'bottom' ? room.width : room.height;
+  const adjacentSegments = getAdjacentSegments(room, side, allRooms);
 
-const getOppositeSide = (side: 'top' | 'bottom' | 'left' | 'right') => {
-  switch (side) {
-    case 'top':
-      return 'bottom';
-    case 'bottom':
-      return 'top';
-    case 'left':
-      return 'right';
-    case 'right':
-      return 'left';
+  if (adjacentSegments.length === 0) {
+    return [{ start: 0, end: wallLength, isShared: false }];
   }
+
+  // Sort by start position
+  adjacentSegments.sort((a, b) => a.start - b.start);
+
+  const result: WallSegmentInfo[] = [];
+  let currentPos = 0;
+
+  for (const seg of adjacentSegments) {
+    // Exterior segment before this shared segment
+    if (seg.start > currentPos + 0.1) {
+      result.push({ start: currentPos, end: seg.start, isShared: false });
+    }
+    // Shared segment
+    result.push(seg);
+    currentPos = Math.max(currentPos, seg.end);
+  }
+
+  // Exterior segment after last shared segment
+  if (currentPos < wallLength - 0.1) {
+    result.push({ start: currentPos, end: wallLength, isShared: false });
+  }
+
+  return result;
 };
 
-const isPrimarySharedWall = (room: Room, side: 'top' | 'bottom' | 'left' | 'right', allRooms: Room[]) => {
-  const adjacent = findAdjacentRoom(room, side, allRooms);
-  if (!adjacent) return true;
-
-  const roomLen = getWallLengthFeet(room, side);
-  const adjacentLen = getWallLengthFeet(adjacent, getOppositeSide(side));
-
-  // Prefer rendering the longer wall to avoid "missing" wall segments on partial adjacency.
-  if (Math.abs(roomLen - adjacentLen) > 0.25) return roomLen > adjacentLen;
-
-  // Tie-breaker: stable ordering
-  return room.id < adjacent.id;
+// Determine if this room should render a shared wall segment (to avoid z-fighting)
+const shouldRenderSharedSegment = (roomId: string, adjacentRoomId: string): boolean => {
+  return roomId < adjacentRoomId;
 };
 
 interface WallSegmentProps {
@@ -337,6 +343,97 @@ interface Room3DProps {
   allRooms: Room[];
 }
 
+// Component to render a single wall segment
+interface SegmentedWallProps {
+  room: Room;
+  side: 'top' | 'bottom' | 'left' | 'right';
+  segment: WallSegmentInfo;
+  wallLength: number;
+  width: number;
+  depth: number;
+  floorHeight: number;
+  color: string;
+  doors: { offset: number; width: number }[];
+  windows: { offset: number; width: number }[];
+}
+
+function SegmentedWall({ 
+  room, 
+  side, 
+  segment, 
+  wallLength, 
+  width, 
+  depth, 
+  floorHeight, 
+  color, 
+  doors, 
+  windows 
+}: SegmentedWallProps) {
+  const segmentLength = (segment.end - segment.start) * SCALE;
+  const segmentOffset = segment.start * SCALE;
+  
+  // For shared segments, only render if this room "owns" it
+  if (segment.isShared && segment.adjacentRoomId) {
+    if (!shouldRenderSharedSegment(room.id, segment.adjacentRoomId)) {
+      return null;
+    }
+  }
+  
+  // Filter doors/windows that fall within this segment
+  const segmentDoors = doors.filter(d => {
+    const doorPos = (d.offset / 100) * wallLength;
+    return doorPos >= segment.start && doorPos <= segment.end;
+  }).map(d => ({
+    offset: ((d.offset / 100) * wallLength - segment.start) / (segment.end - segment.start) * 100,
+    width: d.width,
+  }));
+  
+  // Only include windows on exterior segments
+  const segmentWindows = segment.isShared ? [] : windows.filter(w => {
+    const winPos = (w.offset / 100) * wallLength;
+    return winPos >= segment.start && winPos <= segment.end;
+  }).map(w => ({
+    offset: ((w.offset / 100) * wallLength - segment.start) / (segment.end - segment.start) * 100,
+    width: w.width,
+  }));
+  
+  // Calculate position based on side
+  let start: [number, number];
+  let end: [number, number];
+  
+  switch (side) {
+    case 'top':
+      start = [-width / 2 + segmentOffset, -depth / 2];
+      end = [-width / 2 + segmentOffset + segmentLength, -depth / 2];
+      break;
+    case 'bottom':
+      start = [-width / 2 + segmentOffset, depth / 2];
+      end = [-width / 2 + segmentOffset + segmentLength, depth / 2];
+      break;
+    case 'left':
+      start = [-width / 2, -depth / 2 + segmentOffset];
+      end = [-width / 2, -depth / 2 + segmentOffset + segmentLength];
+      break;
+    case 'right':
+      start = [width / 2, -depth / 2 + segmentOffset];
+      end = [width / 2, -depth / 2 + segmentOffset + segmentLength];
+      break;
+  }
+  
+  return (
+    <WallWithOpenings
+      start={start}
+      end={end}
+      height={floorHeight}
+      thickness={WALL_THICKNESS}
+      color={color}
+      doors={segmentDoors}
+      windows={segmentWindows}
+      isInterior={segment.isShared}
+    />
+  );
+}
+
 function Room3D({ room, plotWidth, plotLength, floorHeight, allRooms }: Room3DProps) {
   const materials = getRoomMaterial(room.type);
   
@@ -346,11 +443,11 @@ function Room3D({ room, plotWidth, plotLength, floorHeight, allRooms }: Room3DPr
   const depth = room.height * SCALE;
   const baseY = (room.floor - 1) * floorHeight;
   
-  // Check for interior walls
-  const isInteriorTop = checkAdjacentWall(room, 'top', allRooms);
-  const isInteriorBottom = checkAdjacentWall(room, 'bottom', allRooms);
-  const isInteriorLeft = checkAdjacentWall(room, 'left', allRooms);
-  const isInteriorRight = checkAdjacentWall(room, 'right', allRooms);
+  // Build wall segments for each side
+  const topSegments = buildWallSegments(room, 'top', allRooms);
+  const bottomSegments = buildWallSegments(room, 'bottom', allRooms);
+  const leftSegments = buildWallSegments(room, 'left', allRooms);
+  const rightSegments = buildWallSegments(room, 'right', allRooms);
   
   // Get doors and windows for each wall
   const getDoorWindowsForWall = (position: 'top' | 'bottom' | 'left' | 'right') => {
@@ -363,12 +460,6 @@ function Room3D({ room, plotWidth, plotLength, floorHeight, allRooms }: Room3DPr
   const bottomWall = getDoorWindowsForWall('bottom');
   const leftWall = getDoorWindowsForWall('left');
   const rightWall = getDoorWindowsForWall('right');
-
-  // Determine which walls this room should render (to avoid duplicate shared walls)
-  const renderTop = !isInteriorTop || isPrimarySharedWall(room, 'top', allRooms);
-  const renderBottom = !isInteriorBottom || isPrimarySharedWall(room, 'bottom', allRooms);
-  const renderLeft = !isInteriorLeft || isPrimarySharedWall(room, 'left', allRooms);
-  const renderRight = !isInteriorRight || isPrimarySharedWall(room, 'right', allRooms);
 
   return (
     <group position={[x + width / 2, baseY, z + depth / 2]}>
@@ -390,61 +481,74 @@ function Room3D({ room, plotWidth, plotLength, floorHeight, allRooms }: Room3DPr
         <meshStandardMaterial color="#ffffff" />
       </mesh>
 
-      {/* Front wall (negative Z / top in 2D) */}
-      {renderTop && (
-        <WallWithOpenings
-          start={[-width / 2, -depth / 2]}
-          end={[width / 2, -depth / 2]}
-          height={floorHeight}
-          thickness={WALL_THICKNESS}
+      {/* Top wall segments */}
+      {topSegments.map((seg, i) => (
+        <SegmentedWall
+          key={`top-${i}`}
+          room={room}
+          side="top"
+          segment={seg}
+          wallLength={room.width}
+          width={width}
+          depth={depth}
+          floorHeight={floorHeight}
           color={materials.wall}
           doors={topWall.doors}
-          windows={isInteriorTop ? [] : topWall.windows}
-          isInterior={isInteriorTop}
+          windows={topWall.windows}
         />
-      )}
+      ))}
 
-      {/* Back wall (positive Z / bottom in 2D) */}
-      {renderBottom && (
-        <WallWithOpenings
-          start={[-width / 2, depth / 2]}
-          end={[width / 2, depth / 2]}
-          height={floorHeight}
-          thickness={WALL_THICKNESS}
+      {/* Bottom wall segments */}
+      {bottomSegments.map((seg, i) => (
+        <SegmentedWall
+          key={`bottom-${i}`}
+          room={room}
+          side="bottom"
+          segment={seg}
+          wallLength={room.width}
+          width={width}
+          depth={depth}
+          floorHeight={floorHeight}
           color={materials.wall}
           doors={bottomWall.doors}
-          windows={isInteriorBottom ? [] : bottomWall.windows}
-          isInterior={isInteriorBottom}
+          windows={bottomWall.windows}
         />
-      )}
+      ))}
 
-      {/* Left wall (negative X) */}
-      {renderLeft && (
-        <WallWithOpenings
-          start={[-width / 2, -depth / 2]}
-          end={[-width / 2, depth / 2]}
-          height={floorHeight}
-          thickness={WALL_THICKNESS}
+      {/* Left wall segments */}
+      {leftSegments.map((seg, i) => (
+        <SegmentedWall
+          key={`left-${i}`}
+          room={room}
+          side="left"
+          segment={seg}
+          wallLength={room.height}
+          width={width}
+          depth={depth}
+          floorHeight={floorHeight}
           color={materials.wall}
           doors={leftWall.doors}
-          windows={isInteriorLeft ? [] : leftWall.windows}
-          isInterior={isInteriorLeft}
+          windows={leftWall.windows}
         />
-      )}
+      ))}
 
-      {/* Right wall (positive X) */}
-      {renderRight && (
-        <WallWithOpenings
-          start={[width / 2, -depth / 2]}
-          end={[width / 2, depth / 2]}
-          height={floorHeight}
-          thickness={WALL_THICKNESS}
+      {/* Right wall segments */}
+      {rightSegments.map((seg, i) => (
+        <SegmentedWall
+          key={`right-${i}`}
+          room={room}
+          side="right"
+          segment={seg}
+          wallLength={room.height}
+          width={width}
+          depth={depth}
+          floorHeight={floorHeight}
           color={materials.wall}
           doors={rightWall.doors}
-          windows={isInteriorRight ? [] : rightWall.windows}
-          isInterior={isInteriorRight}
+          windows={rightWall.windows}
         />
-      )}
+      ))}
+
       <Text
         position={[0, floorHeight + 0.3, 0]}
         fontSize={0.4}

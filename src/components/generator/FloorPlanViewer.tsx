@@ -1,13 +1,16 @@
 import { useState, lazy, Suspense, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Download, RotateCcw, ZoomIn, ZoomOut, Save, Box, Grid2X2, Compass } from "lucide-react";
-import { FormData, GeneratedLayout, ROOM_COLORS } from "@/types/floorPlan";
+import { Download, RotateCcw, ZoomIn, ZoomOut, Save, Box, Grid2X2 } from "lucide-react";
+import { FormData, GeneratedLayout } from "@/types/floorPlan";
 import { generateBlueprintPDF } from "@/lib/generatePDF";
 import { useAuth } from "@/hooks/useAuth";
 import { useSavedPlans } from "@/hooks/useSavedPlans";
 import { toast } from "sonner";
-import RoomSVG from "./RoomSVG";
+import RoomSVGProfessional from "./RoomSVGProfessional";
+import AreaSchedule from "./AreaSchedule";
+import PlanLegend from "./PlanLegend";
+import DimensionStrings from "./DimensionStrings";
 import {
   Dialog,
   DialogContent,
@@ -37,13 +40,15 @@ const FloorPlanViewer = ({ planData, layout, onReset }: FloorPlanViewerProps) =>
   const plotLength = parseInt(planData.plotLength) || 60;
   const floors = parseInt(planData.floors) || 1;
   
-  const maxViewerWidth = 700;
-  const maxViewerHeight = 500;
+  // Professional scale for cleaner rendering
+  const maxViewerWidth = 550;
+  const maxViewerHeight = 400;
   const scaleX = maxViewerWidth / plotLength;
   const scaleY = maxViewerHeight / plotWidth;
-  const scale = Math.min(scaleX, scaleY) * 0.8;
+  const scale = Math.min(scaleX, scaleY) * 0.85;
   
-  const wallThickness = 3;
+  // Wall thickness: exterior 9", interior 6" (scaled proportionally)
+  const wallThickness = Math.max(2, scale * 0.75);
 
   // Filter rooms by floor
   const floorRooms = useMemo(() => 
@@ -161,126 +166,99 @@ const FloorPlanViewer = ({ planData, layout, onReset }: FloorPlanViewerProps) =>
           />
         </Suspense>
       ) : (
-        <div className="p-8 bg-background/50 overflow-auto">
-          <div className="flex justify-center">
+        <div className="p-6 bg-neutral-100 overflow-auto">
+          <div className="flex flex-col lg:flex-row gap-6 justify-center items-start">
+            {/* Left: Legend */}
+            <div className="w-full lg:w-48 flex-shrink-0">
+              <PlanLegend />
+            </div>
+            
+            {/* Center: Floor Plan */}
             <div className="relative">
-              {/* Blueprint title */}
-              <div className="text-center mb-4">
-                <h3 className="text-lg font-bold text-foreground uppercase tracking-wider">
-                  Floor Plan - Level {selectedFloor}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  Plot: {plotLength}' × {plotWidth}' | Scale: 1" = 10'
-                </p>
+              {/* Title Block */}
+              <div className="bg-white border-2 border-neutral-900 p-3 mb-4">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h3 className="text-sm font-bold text-neutral-900 uppercase tracking-wider">
+                      Floor Plan - Level {selectedFloor}
+                    </h3>
+                    <p className="text-xs text-neutral-500 font-mono mt-1">
+                      Plot: {plotLength}' × {plotWidth}' | Scale: 1" = 10'
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <div className="flex items-center gap-2 text-xs text-neutral-600">
+                      <svg width="20" height="20" viewBox="0 0 20 20" className="flex-shrink-0">
+                        <polygon points="10,2 14,18 10,14 6,18" fill="none" stroke="#1a1a1a" strokeWidth="1" />
+                        <text x="10" y="10" textAnchor="middle" fontSize="6" fontWeight="bold" fill="#1a1a1a">N</text>
+                      </svg>
+                      <span>North</span>
+                    </div>
+                  </div>
+                </div>
               </div>
               
-              {/* SVG Floor Plan */}
-              <div className="relative bg-background border-2 border-foreground shadow-lg">
-                {/* Compass */}
-                <div className="absolute -top-12 -right-12 w-16 h-16 flex items-center justify-center">
-                  <Compass className="w-10 h-10 text-muted-foreground" />
-                  <span className="absolute -top-2 text-xs font-bold text-foreground">N</span>
-                </div>
-                
-                {/* Dimension label - top */}
-                <div className="absolute -top-8 left-0 right-0 flex items-center justify-center">
-                  <div className="flex items-center gap-2">
-                    <div className="h-px w-8 bg-foreground" />
-                    <span className="text-sm font-mono text-foreground">{plotLength} ft</span>
-                    <div className="h-px w-8 bg-foreground" />
-                  </div>
-                </div>
-                
-                {/* Dimension label - left */}
-                <div 
-                  className="absolute -left-12 top-0 bottom-0 flex items-center justify-center"
-                  style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
-                >
-                  <div className="flex items-center gap-2">
-                    <div className="w-px h-8 bg-foreground" />
-                    <span className="text-sm font-mono text-foreground">{plotWidth} ft</span>
-                    <div className="w-px h-8 bg-foreground" />
-                  </div>
-                </div>
-                
+              {/* Drawing Area */}
+              <div className="bg-white border-2 border-neutral-900 p-10">
                 <svg 
-                  width={svgWidth} 
-                  height={svgHeight}
+                  width={svgWidth + 60} 
+                  height={svgHeight + 60}
                   className="block"
-                  style={{ transition: "all 0.3s ease" }}
+                  style={{ overflow: 'visible' }}
                 >
-                  {/* Background grid */}
-                  <defs>
-                    <pattern 
-                      id="smallGrid" 
-                      width={5 * zoom} 
-                      height={5 * zoom} 
-                      patternUnits="userSpaceOnUse"
-                    >
-                      <path 
-                        d={`M ${5 * zoom} 0 L 0 0 0 ${5 * zoom}`} 
-                        fill="none" 
-                        stroke="hsl(var(--muted-foreground))" 
-                        strokeWidth="0.25"
-                        opacity="0.3"
-                      />
-                    </pattern>
-                    <pattern 
-                      id="grid" 
-                      width={scale * zoom} 
-                      height={scale * zoom} 
-                      patternUnits="userSpaceOnUse"
-                    >
-                      <rect width={scale * zoom} height={scale * zoom} fill="url(#smallGrid)" />
-                      <path 
-                        d={`M ${scale * zoom} 0 L 0 0 0 ${scale * zoom}`} 
-                        fill="none" 
-                        stroke="hsl(var(--muted-foreground))" 
-                        strokeWidth="0.5"
-                        opacity="0.5"
-                      />
-                    </pattern>
-                  </defs>
-                  <rect width="100%" height="100%" fill="url(#grid)" />
-                  
-                  {/* Plot boundary */}
-                  <rect 
-                    x={1} 
-                    y={1} 
-                    width={svgWidth - 2} 
-                    height={svgHeight - 2} 
-                    fill="none" 
-                    stroke="hsl(var(--foreground))" 
-                    strokeWidth={2}
-                    strokeDasharray="10,5"
-                  />
-                  
-                  {/* Rooms */}
-                  {floorRooms.map((room) => (
-                    <RoomSVG
-                      key={room.id}
-                      room={room}
+                  {/* Offset for dimensions */}
+                  <g transform="translate(40, 40)">
+                    {/* Dimension strings outside the plan */}
+                    <DimensionStrings
+                      plotLength={plotLength}
+                      plotWidth={plotWidth}
                       scale={scale}
                       zoom={zoom}
-                      wallThickness={wallThickness}
-                      allRooms={floorRooms}
+                      svgWidth={svgWidth}
+                      svgHeight={svgHeight}
                     />
-                  ))}
+                    
+                    {/* Plot boundary */}
+                    <rect 
+                      x={0} 
+                      y={0} 
+                      width={svgWidth} 
+                      height={svgHeight} 
+                      fill="#ffffff"
+                      stroke="#1a1a1a" 
+                      strokeWidth={2}
+                    />
+                    
+                    {/* Rooms - professional monochrome */}
+                    {floorRooms.map((room) => (
+                      <RoomSVGProfessional
+                        key={room.id}
+                        room={room}
+                        scale={scale}
+                        zoom={zoom}
+                        wallThickness={wallThickness}
+                        allRooms={floorRooms}
+                      />
+                    ))}
+                  </g>
                 </svg>
               </div>
               
-              {/* Legend */}
-              <div className="mt-6 flex flex-wrap gap-3 justify-center">
-                {Object.entries(ROOM_COLORS).slice(0, 8).map(([type, color]) => (
-                  <div key={type} className="flex items-center gap-2">
-                    <div 
-                      className="w-4 h-4 border border-foreground/30" 
-                      style={{ backgroundColor: color }}
-                    />
-                    <span className="text-xs text-muted-foreground capitalize">{type}</span>
-                  </div>
-                ))}
+              {/* Footer note */}
+              <div className="mt-3 text-center">
+                <p className="text-[10px] text-neutral-500 font-mono">
+                  Drawing for conceptual purposes only. Consult licensed architect for construction.
+                </p>
               </div>
+            </div>
+            
+            {/* Right: Area Schedule */}
+            <div className="w-full lg:w-64 flex-shrink-0">
+              <AreaSchedule 
+                rooms={floorRooms}
+                totalArea={layout.totalArea}
+                efficiency={layout.efficiency}
+              />
             </div>
           </div>
         </div>

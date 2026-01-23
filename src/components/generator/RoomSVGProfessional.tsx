@@ -263,7 +263,7 @@ const checkAdjacentWall = (room: Room, side: 'top' | 'bottom' | 'left' | 'right'
   return false;
 };
 
-// Default furniture by room type
+// Default furniture by room type - now covers all room types with realistic layouts
 const getDefaultFurniture = (roomType: RoomType): { type: Furniture['type']; x: number; y: number; w: number; h: number; rotation?: number }[] => {
   switch (roomType) {
     case 'bedroom':
@@ -299,11 +299,28 @@ const getDefaultFurniture = (roomType: RoomType): { type: Furniture['type']; x: 
         { type: 'desk', x: 15, y: 15, w: 55, h: 35 },
       ];
     case 'garden':
+      return [
+        { type: 'plants', x: 10, y: 10, w: 25, h: 25 },
+        { type: 'plants', x: 65, y: 65, w: 25, h: 25 },
+        { type: 'plants', x: 60, y: 15, w: 20, h: 20 },
+      ];
     case 'balcony':
       return [
-        { type: 'plants', x: 15, y: 15, w: 20, h: 20 },
-        { type: 'plants', x: 65, y: 65, w: 20, h: 20 },
+        { type: 'plants', x: 10, y: 60, w: 20, h: 20 },
+        { type: 'plants', x: 70, y: 60, w: 20, h: 20 },
       ];
+    case 'pooja':
+      return [];
+    case 'utility':
+      return [];
+    case 'store':
+      return [];
+    case 'wardrobe':
+      return [
+        { type: 'wardrobe', x: 10, y: 10, w: 80, h: 25 },
+      ];
+    case 'hallway':
+    case 'staircase':
     default:
       return [];
   }
@@ -327,6 +344,120 @@ const RoomSVGProfessional = ({ room, scale, zoom, wallThickness, allRooms }: Roo
   const exteriorWallWidth = wallThickness * 1.5;
   const interiorWallWidth = wallThickness;
   
+  // Room-specific decorative elements
+  const getRoomDecoration = () => {
+    const stroke = '#1a1a1a';
+    const strokeWidth = 0.5;
+    
+    switch (room.type) {
+      case 'balcony':
+        // Railing pattern on exterior edges
+        return (
+          <g>
+            {/* Railing pattern - vertical lines along exterior edges */}
+            {!isInteriorTop && Array.from({ length: Math.max(3, Math.floor(width / 8)) }).map((_, i) => {
+              const railX = 4 + (i * (width - 8) / Math.max(2, Math.floor(width / 8) - 1));
+              return <line key={`rail-t-${i}`} x1={railX} y1={2} x2={railX} y2={8} stroke={stroke} strokeWidth={strokeWidth} />;
+            })}
+            {!isInteriorBottom && Array.from({ length: Math.max(3, Math.floor(width / 8)) }).map((_, i) => {
+              const railX = 4 + (i * (width - 8) / Math.max(2, Math.floor(width / 8) - 1));
+              return <line key={`rail-b-${i}`} x1={railX} y1={height - 8} x2={railX} y2={height - 2} stroke={stroke} strokeWidth={strokeWidth} />;
+            })}
+            {/* Horizontal rail lines */}
+            {!isInteriorTop && <line x1={2} y1={5} x2={width - 2} y2={5} stroke={stroke} strokeWidth={strokeWidth} />}
+            {!isInteriorBottom && <line x1={2} y1={height - 5} x2={width - 2} y2={height - 5} stroke={stroke} strokeWidth={strokeWidth} />}
+          </g>
+        );
+      
+      case 'garden':
+        // Tree and plant symbols
+        return (
+          <g>
+            {/* Tree symbols */}
+            <circle cx={width * 0.25} cy={height * 0.3} r={Math.min(width, height) * 0.12} fill="none" stroke={stroke} strokeWidth={strokeWidth} />
+            <circle cx={width * 0.75} cy={height * 0.7} r={Math.min(width, height) * 0.1} fill="none" stroke={stroke} strokeWidth={strokeWidth} />
+            {/* Path indication */}
+            <line x1={width * 0.5} y1={height * 0.1} x2={width * 0.5} y2={height * 0.9} stroke={stroke} strokeWidth={strokeWidth} strokeDasharray="3,3" />
+          </g>
+        );
+      
+      case 'pooja':
+        // Temple/mandir symbol
+        return (
+          <g>
+            {/* Mandir outline */}
+            <rect x={width * 0.25} y={height * 0.15} width={width * 0.5} height={height * 0.55} fill="none" stroke={stroke} strokeWidth={strokeWidth} />
+            {/* Temple top triangle */}
+            <polygon 
+              points={`${width * 0.25},${height * 0.15} ${width * 0.5},${height * 0.05} ${width * 0.75},${height * 0.15}`} 
+              fill="none" 
+              stroke={stroke} 
+              strokeWidth={strokeWidth} 
+            />
+            {/* Diya symbols */}
+            <circle cx={width * 0.35} cy={height * 0.8} r={3} fill="none" stroke={stroke} strokeWidth={strokeWidth} />
+            <circle cx={width * 0.65} cy={height * 0.8} r={3} fill="none" stroke={stroke} strokeWidth={strokeWidth} />
+          </g>
+        );
+      
+      case 'utility':
+        // Washing machine and utility symbols
+        return (
+          <g>
+            {/* Washing machine */}
+            <rect x={width * 0.1} y={height * 0.2} width={width * 0.35} height={height * 0.4} fill="none" stroke={stroke} strokeWidth={strokeWidth} />
+            <circle cx={width * 0.275} cy={height * 0.45} r={Math.min(width, height) * 0.1} fill="none" stroke={stroke} strokeWidth={strokeWidth} />
+            {/* Utility sink */}
+            <rect x={width * 0.55} y={height * 0.25} width={width * 0.35} height={height * 0.3} fill="none" stroke={stroke} strokeWidth={strokeWidth} />
+            <ellipse cx={width * 0.725} cy={height * 0.4} rx={width * 0.1} ry={height * 0.08} fill="none" stroke={stroke} strokeWidth={strokeWidth} />
+          </g>
+        );
+      
+      case 'store':
+        // Shelving pattern
+        return (
+          <g>
+            {/* Shelf units */}
+            <rect x={width * 0.05} y={height * 0.1} width={width * 0.25} height={height * 0.8} fill="none" stroke={stroke} strokeWidth={strokeWidth} />
+            {/* Shelf lines */}
+            <line x1={width * 0.05} y1={height * 0.3} x2={width * 0.3} y2={height * 0.3} stroke={stroke} strokeWidth={strokeWidth} />
+            <line x1={width * 0.05} y1={height * 0.5} x2={width * 0.3} y2={height * 0.5} stroke={stroke} strokeWidth={strokeWidth} />
+            <line x1={width * 0.05} y1={height * 0.7} x2={width * 0.3} y2={height * 0.7} stroke={stroke} strokeWidth={strokeWidth} />
+            {/* Storage boxes */}
+            <rect x={width * 0.5} y={height * 0.3} width={width * 0.35} height={height * 0.25} fill="none" stroke={stroke} strokeWidth={strokeWidth} />
+            <rect x={width * 0.5} y={height * 0.6} width={width * 0.35} height={height * 0.25} fill="none" stroke={stroke} strokeWidth={strokeWidth} />
+          </g>
+        );
+      
+      case 'staircase':
+        // Stair pattern
+        const numSteps = Math.max(4, Math.floor(height / 10));
+        return (
+          <g>
+            {Array.from({ length: numSteps }).map((_, i) => (
+              <line 
+                key={`step-${i}`} 
+                x1={width * 0.15} 
+                y1={height * 0.1 + (i * (height * 0.8) / numSteps)} 
+                x2={width * 0.85} 
+                y2={height * 0.1 + (i * (height * 0.8) / numSteps)} 
+                stroke={stroke} 
+                strokeWidth={strokeWidth} 
+              />
+            ))}
+            {/* Arrow indicating direction */}
+            <polygon 
+              points={`${width * 0.5},${height * 0.15} ${width * 0.45},${height * 0.25} ${width * 0.55},${height * 0.25}`} 
+              fill={stroke} 
+            />
+          </g>
+        );
+      
+      default:
+        return null;
+    }
+  };
+
   return (
     <g transform={`translate(${x}, ${y})`}>
       {/* Room fill - clean white */}
@@ -365,6 +496,9 @@ const RoomSVGProfessional = ({ room, scale, zoom, wallThickness, allRooms }: Roo
       {!isInteriorRight && (
         <line x1={width} y1={0} x2={width} y2={height} stroke="#1a1a1a" strokeWidth={exteriorWallWidth} />
       )}
+      
+      {/* Room-specific decorations */}
+      {getRoomDecoration()}
       
       {/* Doors */}
       {(room.doors || []).map((door, i) => (

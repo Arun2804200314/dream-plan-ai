@@ -617,6 +617,7 @@ function Room3D({ room, plotWidth, plotLength, floorHeight, allRooms }: Room3DPr
   );
 }
 
+// Realistic room-specific 3D elements
 function RoomFurniture({ type, width, depth }: { type: RoomType; width: number; depth: number }) {
   switch (type) {
     case 'bedroom':
@@ -651,8 +652,18 @@ function RoomFurniture({ type, width, depth }: { type: RoomType; width: number; 
             <boxGeometry args={[0.4, 0.5, 0.4]} />
             <meshStandardMaterial color="#6b4423" />
           </mesh>
+          {/* Lamp on nightstand */}
+          <mesh position={[-width * 0.35, 0.55, depth * 0.2]}>
+            <cylinderGeometry args={[0.05, 0.08, 0.15, 12]} />
+            <meshStandardMaterial color="#d4a574" />
+          </mesh>
+          <mesh position={[-width * 0.35, 0.68, depth * 0.2]}>
+            <coneGeometry args={[0.12, 0.15, 12]} />
+            <meshStandardMaterial color="#fef9e7" />
+          </mesh>
         </group>
       );
+
     case 'bathroom':
       return (
         <group>
@@ -666,176 +677,707 @@ function RoomFurniture({ type, width, depth }: { type: RoomType; width: number; 
               <boxGeometry args={[0.35, 0.5, 0.15]} />
               <meshStandardMaterial color="#f8f8f8" />
             </mesh>
+            {/* Toilet seat */}
+            <mesh position={[0, 0.42, 0.05]} rotation={[-0.1, 0, 0]}>
+              <boxGeometry args={[0.38, 0.03, 0.35]} />
+              <meshStandardMaterial color="#e0e0e0" />
+            </mesh>
           </group>
-          {/* Sink */}
-          <mesh position={[width * 0.25, 0.45, -depth * 0.35]}>
-            <boxGeometry args={[0.5, 0.1, 0.4]} />
-            <meshStandardMaterial color="#e0e0e0" />
-          </mesh>
-          {/* Shower tray */}
-          <mesh position={[width * 0.25, 0.02, depth * 0.25]} rotation={[-Math.PI / 2, 0, 0]}>
-            <planeGeometry args={[width * 0.4, depth * 0.4]} />
-            <meshStandardMaterial color="#c8d8e8" />
-          </mesh>
+          {/* Sink with vanity */}
+          <group position={[width * 0.25, 0, -depth * 0.35]}>
+            <mesh position={[0, 0.4, 0]}>
+              <boxGeometry args={[0.6, 0.8, 0.45]} />
+              <meshStandardMaterial color="#5c4033" />
+            </mesh>
+            <mesh position={[0, 0.82, 0]}>
+              <boxGeometry args={[0.58, 0.04, 0.43]} />
+              <meshStandardMaterial color="#d4d4d4" />
+            </mesh>
+            {/* Basin */}
+            <mesh position={[0, 0.78, 0]}>
+              <cylinderGeometry args={[0.18, 0.15, 0.12, 24]} />
+              <meshStandardMaterial color="#ffffff" />
+            </mesh>
+            {/* Faucet */}
+            <mesh position={[0, 0.9, -0.12]}>
+              <cylinderGeometry args={[0.02, 0.02, 0.15, 8]} />
+              <meshStandardMaterial color="#c0c0c0" metalness={0.8} roughness={0.2} />
+            </mesh>
+            {/* Mirror */}
+            <mesh position={[0, 1.4, -0.2]}>
+              <boxGeometry args={[0.5, 0.6, 0.02]} />
+              <meshStandardMaterial color="#b8d4e8" metalness={0.5} roughness={0.1} />
+            </mesh>
+          </group>
+          {/* Shower enclosure */}
+          <group position={[width * 0.25, 0, depth * 0.25]}>
+            {/* Shower tray */}
+            <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+              <planeGeometry args={[width * 0.4, depth * 0.4]} />
+              <meshStandardMaterial color="#e8f0f8" />
+            </mesh>
+            {/* Glass panels */}
+            <mesh position={[-width * 0.2, WALL_HEIGHT / 2, 0]}>
+              <boxGeometry args={[0.02, WALL_HEIGHT * 0.7, depth * 0.38]} />
+              <meshStandardMaterial color="#a8d0e8" transparent opacity={0.3} />
+            </mesh>
+            <mesh position={[0, WALL_HEIGHT / 2, -depth * 0.2]}>
+              <boxGeometry args={[width * 0.38, WALL_HEIGHT * 0.7, 0.02]} />
+              <meshStandardMaterial color="#a8d0e8" transparent opacity={0.3} />
+            </mesh>
+            {/* Shower head */}
+            <mesh position={[0, WALL_HEIGHT * 0.7, -depth * 0.18]}>
+              <cylinderGeometry args={[0.1, 0.08, 0.05, 12]} />
+              <meshStandardMaterial color="#c0c0c0" metalness={0.8} roughness={0.2} />
+            </mesh>
+          </group>
         </group>
       );
+
     case 'kitchen':
       return (
         <group>
-          {/* Counter */}
+          {/* L-shaped counter */}
           <mesh position={[0, 0.45, -depth * 0.38]} castShadow>
             <boxGeometry args={[width * 0.85, 0.9, 0.55]} />
             <meshStandardMaterial color="#5c4033" />
           </mesh>
-          {/* Counter top */}
+          <mesh position={[-width * 0.38, 0.45, 0]} castShadow>
+            <boxGeometry args={[0.55, 0.9, depth * 0.6]} />
+            <meshStandardMaterial color="#5c4033" />
+          </mesh>
+          {/* Counter tops */}
           <mesh position={[0, 0.91, -depth * 0.38]}>
             <boxGeometry args={[width * 0.87, 0.03, 0.58]} />
-            <meshStandardMaterial color="#d8d8d8" />
+            <meshStandardMaterial color="#2d2d2d" />
           </mesh>
-          {/* Stove */}
-          <mesh position={[0, 0.93, -depth * 0.38]}>
+          <mesh position={[-width * 0.38, 0.91, 0]}>
+            <boxGeometry args={[0.58, 0.03, depth * 0.62]} />
+            <meshStandardMaterial color="#2d2d2d" />
+          </mesh>
+          {/* Stove with burners */}
+          <mesh position={[width * 0.15, 0.93, -depth * 0.38]}>
             <boxGeometry args={[0.6, 0.02, 0.5]} />
             <meshStandardMaterial color="#1f2937" />
           </mesh>
+          {/* Burner rings */}
+          {[[-0.12, -0.1], [0.12, -0.1], [-0.12, 0.1], [0.12, 0.1]].map(([dx, dz], i) => (
+            <mesh key={i} position={[width * 0.15 + dx, 0.95, -depth * 0.38 + dz]} rotation={[-Math.PI / 2, 0, 0]}>
+              <torusGeometry args={[0.06, 0.01, 8, 24]} />
+              <meshStandardMaterial color="#4a4a4a" />
+            </mesh>
+          ))}
+          {/* Sink */}
+          <mesh position={[-width * 0.15, 0.88, -depth * 0.38]}>
+            <boxGeometry args={[0.5, 0.15, 0.4]} />
+            <meshStandardMaterial color="#c0c0c0" metalness={0.6} roughness={0.3} />
+          </mesh>
+          {/* Fridge */}
+          <mesh position={[width * 0.35, 0.9, depth * 0.3]} castShadow>
+            <boxGeometry args={[0.7, 1.8, 0.65]} />
+            <meshStandardMaterial color="#e0e0e0" />
+          </mesh>
+          {/* Fridge handle */}
+          <mesh position={[width * 0.35 + 0.32, 1.0, depth * 0.3]}>
+            <boxGeometry args={[0.02, 0.4, 0.03]} />
+            <meshStandardMaterial color="#a0a0a0" />
+          </mesh>
+          {/* Upper cabinets */}
+          <mesh position={[0, 2.0, -depth * 0.42]}>
+            <boxGeometry args={[width * 0.8, 0.5, 0.35]} />
+            <meshStandardMaterial color="#6b4423" />
+          </mesh>
         </group>
       );
+
     case 'living':
       return (
         <group>
-          {/* Sofa */}
-          <mesh position={[0, 0.2, depth * 0.2]} castShadow>
+          {/* L-shaped sofa */}
+          <mesh position={[0, 0.2, depth * 0.25]} castShadow>
             <boxGeometry args={[width * 0.55, 0.4, 0.7]} />
-            <meshStandardMaterial color="#6b7280" />
+            <meshStandardMaterial color="#4a6741" />
           </mesh>
-          {/* Sofa back */}
-          <mesh position={[0, 0.5, depth * 0.32]}>
-            <boxGeometry args={[width * 0.55, 0.55, 0.12]} />
-            <meshStandardMaterial color="#6b7280" />
+          <mesh position={[0, 0.5, depth * 0.38]}>
+            <boxGeometry args={[width * 0.55, 0.45, 0.12]} />
+            <meshStandardMaterial color="#4a6741" />
           </mesh>
-          {/* Sofa arms */}
-          <mesh position={[-width * 0.28, 0.35, depth * 0.2]}>
+          <mesh position={[-width * 0.28, 0.35, depth * 0.25]}>
             <boxGeometry args={[0.08, 0.3, 0.7]} />
-            <meshStandardMaterial color="#6b7280" />
+            <meshStandardMaterial color="#4a6741" />
           </mesh>
-          <mesh position={[width * 0.28, 0.35, depth * 0.2]}>
+          <mesh position={[width * 0.28, 0.35, depth * 0.25]}>
             <boxGeometry args={[0.08, 0.3, 0.7]} />
-            <meshStandardMaterial color="#6b7280" />
+            <meshStandardMaterial color="#4a6741" />
           </mesh>
-          {/* Coffee table */}
-          <mesh position={[0, 0.25, -depth * 0.15]} castShadow>
+          {/* Cushions */}
+          {[-0.2, 0, 0.2].map((dx, i) => (
+            <mesh key={i} position={[dx * width, 0.48, depth * 0.2]}>
+              <boxGeometry args={[0.35, 0.12, 0.35]} />
+              <meshStandardMaterial color="#5d8254" />
+            </mesh>
+          ))}
+          {/* Coffee table with glass top */}
+          <mesh position={[0, 0.25, -depth * 0.1]} castShadow>
             <boxGeometry args={[0.9, 0.04, 0.5]} />
-            <meshStandardMaterial color="#8b7355" />
+            <meshStandardMaterial color="#87ceeb" transparent opacity={0.4} />
           </mesh>
-          {/* Table legs */}
           {[[-0.4, -0.2], [0.4, -0.2], [-0.4, 0.2], [0.4, 0.2]].map(([dx, dz], i) => (
-            <mesh key={i} position={[dx, 0.12, -depth * 0.15 + dz]}>
+            <mesh key={i} position={[dx, 0.12, -depth * 0.1 + dz]}>
               <boxGeometry args={[0.03, 0.22, 0.03]} />
               <meshStandardMaterial color="#5c4033" />
             </mesh>
           ))}
-          {/* TV stand */}
-          <mesh position={[0, 0.25, -depth * 0.4]} castShadow>
-            <boxGeometry args={[width * 0.4, 0.5, 0.35]} />
-            <meshStandardMaterial color="#4b5563" />
+          {/* TV unit */}
+          <mesh position={[0, 0.25, -depth * 0.42]} castShadow>
+            <boxGeometry args={[width * 0.5, 0.5, 0.35]} />
+            <meshStandardMaterial color="#3d3d3d" />
           </mesh>
+          {/* TV screen */}
+          <mesh position={[0, 0.8, -depth * 0.43]}>
+            <boxGeometry args={[width * 0.45, 0.5, 0.03]} />
+            <meshStandardMaterial color="#1a1a1a" />
+          </mesh>
+          {/* Indoor plant */}
+          <group position={[width * 0.38, 0, depth * 0.35]}>
+            <mesh position={[0, 0.2, 0]}>
+              <cylinderGeometry args={[0.15, 0.12, 0.4, 12]} />
+              <meshStandardMaterial color="#8b4513" />
+            </mesh>
+            <mesh position={[0, 0.5, 0]}>
+              <sphereGeometry args={[0.25, 12, 12]} />
+              <meshStandardMaterial color="#228b22" />
+            </mesh>
+          </group>
         </group>
       );
+
     case 'dining':
       return (
         <group>
           {/* Table */}
           <mesh position={[0, 0.38, 0]} castShadow>
-            <boxGeometry args={[width * 0.45, 0.04, depth * 0.35]} />
-            <meshStandardMaterial color="#8b7355" />
+            <boxGeometry args={[width * 0.5, 0.04, depth * 0.4]} />
+            <meshStandardMaterial color="#8b6914" />
           </mesh>
-          {/* Table legs */}
           {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([dx, dz], i) => (
-            <mesh key={i} position={[dx * width * 0.18, 0.19, dz * depth * 0.14]}>
+            <mesh key={i} position={[dx * width * 0.2, 0.19, dz * depth * 0.16]}>
               <boxGeometry args={[0.04, 0.38, 0.04]} />
               <meshStandardMaterial color="#5c4033" />
             </mesh>
           ))}
-          {/* Chairs */}
+          {/* Chairs with cushions */}
           {[[-1, 0], [1, 0], [0, -1], [0, 1]].map(([dx, dz], i) => (
-            <group key={`chair-${i}`} position={[dx * width * 0.32, 0, dz * depth * 0.28]}>
+            <group key={`chair-${i}`} position={[dx * width * 0.35, 0, dz * depth * 0.32]}>
               <mesh position={[0, 0.22, 0]} castShadow>
-                <boxGeometry args={[0.35, 0.03, 0.35]} />
-                <meshStandardMaterial color="#8b6914" />
+                <boxGeometry args={[0.38, 0.03, 0.38]} />
+                <meshStandardMaterial color="#6b4423" />
               </mesh>
-              <mesh position={[0, 0.45, dz === 0 ? 0.15 * (dx || 1) : 0.15 * dz]}>
-                <boxGeometry args={[0.35, 0.45, 0.03]} />
-                <meshStandardMaterial color="#8b6914" />
+              <mesh position={[0, 0.26, 0]}>
+                <boxGeometry args={[0.32, 0.04, 0.32]} />
+                <meshStandardMaterial color="#c49a6c" />
+              </mesh>
+              <mesh position={[0, 0.48, dz === 0 ? 0.16 * (dx || 1) : 0.16 * dz]}>
+                <boxGeometry args={[0.38, 0.48, 0.03]} />
+                <meshStandardMaterial color="#6b4423" />
+              </mesh>
+              {[[-0.16, -0.16], [0.16, -0.16], [-0.16, 0.16], [0.16, 0.16]].map(([lx, lz], li) => (
+                <mesh key={li} position={[lx, 0.11, lz]}>
+                  <boxGeometry args={[0.03, 0.22, 0.03]} />
+                  <meshStandardMaterial color="#5c4033" />
+                </mesh>
+              ))}
+            </group>
+          ))}
+          {/* Centerpiece */}
+          <mesh position={[0, 0.45, 0]}>
+            <cylinderGeometry args={[0.08, 0.06, 0.15, 12]} />
+            <meshStandardMaterial color="#4a90a4" />
+          </mesh>
+          <mesh position={[0, 0.58, 0]}>
+            <sphereGeometry args={[0.12, 8, 8]} />
+            <meshStandardMaterial color="#228b22" />
+          </mesh>
+        </group>
+      );
+
+    case 'garage':
+      return (
+        <group>
+          {/* Car body */}
+          <mesh position={[0, 0.5, 0]} castShadow>
+            <boxGeometry args={[width * 0.5, 0.7, depth * 0.7]} />
+            <meshStandardMaterial color="#2c3e50" />
+          </mesh>
+          {/* Car cabin/roof */}
+          <mesh position={[0, 0.95, -depth * 0.05]}>
+            <boxGeometry args={[width * 0.42, 0.4, depth * 0.4]} />
+            <meshStandardMaterial color="#2c3e50" />
+          </mesh>
+          {/* Windshield */}
+          <mesh position={[0, 0.9, -depth * 0.18]} rotation={[0.3, 0, 0]}>
+            <boxGeometry args={[width * 0.38, 0.3, 0.02]} />
+            <meshStandardMaterial color="#87ceeb" transparent opacity={0.5} />
+          </mesh>
+          {/* Headlights */}
+          {[-1, 1].map((dx, i) => (
+            <mesh key={i} position={[dx * width * 0.18, 0.5, -depth * 0.36]}>
+              <boxGeometry args={[0.12, 0.08, 0.02]} />
+              <meshStandardMaterial color="#ffeaa7" emissive="#ffeaa7" emissiveIntensity={0.3} />
+            </mesh>
+          ))}
+          {/* Wheels */}
+          {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([dx, dz], i) => (
+            <group key={i}>
+              <mesh position={[dx * width * 0.22, 0.2, dz * depth * 0.25]} rotation={[0, 0, Math.PI / 2]}>
+                <cylinderGeometry args={[0.18, 0.18, 0.1, 16]} />
+                <meshStandardMaterial color="#1a1a1a" />
+              </mesh>
+              <mesh position={[dx * width * 0.22, 0.2, dz * depth * 0.25]} rotation={[0, 0, Math.PI / 2]}>
+                <cylinderGeometry args={[0.1, 0.1, 0.12, 16]} />
+                <meshStandardMaterial color="#c0c0c0" metalness={0.7} roughness={0.3} />
+              </mesh>
+            </group>
+          ))}
+          {/* Tool rack on wall */}
+          <mesh position={[-width * 0.42, 1.2, 0]}>
+            <boxGeometry args={[0.1, 0.8, depth * 0.5]} />
+            <meshStandardMaterial color="#8b4513" />
+          </mesh>
+        </group>
+      );
+
+    case 'balcony':
+      return (
+        <group>
+          {/* Railing posts */}
+          {Array.from({ length: Math.max(3, Math.floor(width / 0.8)) }).map((_, i, arr) => {
+            const x = -width / 2 + 0.15 + (i * (width - 0.3) / (arr.length - 1));
+            return (
+              <group key={`front-${i}`}>
+                <mesh position={[x, 0.5, -depth / 2 + 0.05]}>
+                  <boxGeometry args={[0.05, 1.0, 0.05]} />
+                  <meshStandardMaterial color="#4a4a4a" metalness={0.6} roughness={0.4} />
+                </mesh>
+              </group>
+            );
+          })}
+          {/* Top rail - front */}
+          <mesh position={[0, 1.0, -depth / 2 + 0.05]}>
+            <boxGeometry args={[width - 0.1, 0.05, 0.08]} />
+            <meshStandardMaterial color="#4a4a4a" metalness={0.6} roughness={0.4} />
+          </mesh>
+          {/* Bottom rail - front */}
+          <mesh position={[0, 0.15, -depth / 2 + 0.05]}>
+            <boxGeometry args={[width - 0.1, 0.03, 0.06]} />
+            <meshStandardMaterial color="#4a4a4a" metalness={0.6} roughness={0.4} />
+          </mesh>
+          {/* Vertical balusters - front */}
+          {Array.from({ length: Math.max(5, Math.floor(width / 0.15)) }).map((_, i, arr) => {
+            const x = -width / 2 + 0.1 + (i * (width - 0.2) / (arr.length - 1));
+            return (
+              <mesh key={`baluster-${i}`} position={[x, 0.55, -depth / 2 + 0.05]}>
+                <boxGeometry args={[0.02, 0.8, 0.02]} />
+                <meshStandardMaterial color="#5a5a5a" metalness={0.5} roughness={0.5} />
+              </mesh>
+            );
+          })}
+          {/* Side railings */}
+          {[-1, 1].map((side) => (
+            <group key={`side-${side}`}>
+              <mesh position={[side * (width / 2 - 0.05), 1.0, 0]}>
+                <boxGeometry args={[0.08, 0.05, depth - 0.1]} />
+                <meshStandardMaterial color="#4a4a4a" metalness={0.6} roughness={0.4} />
+              </mesh>
+              {Array.from({ length: Math.max(3, Math.floor(depth / 0.15)) }).map((_, i, arr) => {
+                const z = -depth / 2 + 0.1 + (i * (depth - 0.2) / (arr.length - 1));
+                return (
+                  <mesh key={`side-baluster-${i}`} position={[side * (width / 2 - 0.05), 0.55, z]}>
+                    <boxGeometry args={[0.02, 0.8, 0.02]} />
+                    <meshStandardMaterial color="#5a5a5a" metalness={0.5} roughness={0.5} />
+                  </mesh>
+                );
+              })}
+            </group>
+          ))}
+          {/* Potted plants */}
+          {[[-width * 0.3, depth * 0.2], [width * 0.3, depth * 0.2]].map(([px, pz], i) => (
+            <group key={`plant-${i}`} position={[px, 0, pz]}>
+              <mesh position={[0, 0.15, 0]}>
+                <cylinderGeometry args={[0.12, 0.1, 0.3, 12]} />
+                <meshStandardMaterial color="#8b4513" />
+              </mesh>
+              <mesh position={[0, 0.4, 0]}>
+                <sphereGeometry args={[0.18, 8, 8]} />
+                <meshStandardMaterial color="#228b22" />
+              </mesh>
+            </group>
+          ))}
+          {/* Outdoor chair */}
+          <group position={[0, 0, depth * 0.15]}>
+            <mesh position={[0, 0.2, 0]}>
+              <boxGeometry args={[0.5, 0.04, 0.5]} />
+              <meshStandardMaterial color="#deb887" />
+            </mesh>
+            <mesh position={[0, 0.4, 0.22]}>
+              <boxGeometry args={[0.5, 0.38, 0.04]} />
+              <meshStandardMaterial color="#deb887" />
+            </mesh>
+          </group>
+        </group>
+      );
+
+    case 'garden':
+      return (
+        <group>
+          {/* Grass patches with varying heights */}
+          {Array.from({ length: 8 }).map((_, i) => {
+            const px = (Math.random() - 0.5) * width * 0.8;
+            const pz = (Math.random() - 0.5) * depth * 0.8;
+            return (
+              <mesh key={`grass-${i}`} position={[px, 0.03, pz]} rotation={[-Math.PI / 2, 0, Math.random() * Math.PI]}>
+                <circleGeometry args={[0.15 + Math.random() * 0.1, 8]} />
+                <meshStandardMaterial color={`hsl(${100 + Math.random() * 30}, ${50 + Math.random() * 20}%, ${35 + Math.random() * 15}%)`} />
+              </mesh>
+            );
+          })}
+          {/* Trees/bushes */}
+          {[[-width * 0.3, -depth * 0.3], [width * 0.3, depth * 0.25], [-width * 0.25, depth * 0.3]].map(([tx, tz], i) => (
+            <group key={`tree-${i}`} position={[tx, 0, tz]}>
+              {/* Trunk */}
+              <mesh position={[0, 0.3, 0]}>
+                <cylinderGeometry args={[0.08, 0.1, 0.6, 8]} />
+                <meshStandardMaterial color="#8b4513" />
+              </mesh>
+              {/* Foliage layers */}
+              <mesh position={[0, 0.7, 0]}>
+                <sphereGeometry args={[0.35, 8, 8]} />
+                <meshStandardMaterial color="#228b22" />
+              </mesh>
+              <mesh position={[0, 0.95, 0]}>
+                <sphereGeometry args={[0.25, 8, 8]} />
+                <meshStandardMaterial color="#2e8b2e" />
+              </mesh>
+            </group>
+          ))}
+          {/* Flower beds */}
+          <mesh position={[width * 0.25, 0.08, -depth * 0.3]} rotation={[-Math.PI / 2, 0, 0]}>
+            <boxGeometry args={[0.5, 0.4, 0.12]} />
+            <meshStandardMaterial color="#5c4033" />
+          </mesh>
+          {/* Flowers */}
+          {[[-0.1, 0], [0.1, 0], [0, 0.1], [0, -0.1]].map(([fx, fz], i) => (
+            <mesh key={`flower-${i}`} position={[width * 0.25 + fx, 0.2, -depth * 0.3 + fz]}>
+              <sphereGeometry args={[0.06, 6, 6]} />
+              <meshStandardMaterial color={['#ff6b6b', '#feca57', '#ff9ff3', '#54a0ff'][i]} />
+            </mesh>
+          ))}
+          {/* Stone path */}
+          {Array.from({ length: 4 }).map((_, i) => (
+            <mesh key={`stone-${i}`} position={[0, 0.02, -depth * 0.35 + i * 0.35]} rotation={[-Math.PI / 2, 0, Math.random() * 0.3]}>
+              <circleGeometry args={[0.12, 6]} />
+              <meshStandardMaterial color="#808080" />
+            </mesh>
+          ))}
+        </group>
+      );
+
+    case 'pooja':
+      return (
+        <group>
+          {/* Wooden platform/mandir */}
+          <mesh position={[0, 0.5, -depth * 0.3]} castShadow>
+            <boxGeometry args={[width * 0.6, 1.0, 0.5]} />
+            <meshStandardMaterial color="#8b4513" />
+          </mesh>
+          {/* Decorative top */}
+          <mesh position={[0, 1.1, -depth * 0.3]}>
+            <boxGeometry args={[width * 0.65, 0.15, 0.55]} />
+            <meshStandardMaterial color="#a0522d" />
+          </mesh>
+          {/* Temple dome shape */}
+          <mesh position={[0, 1.4, -depth * 0.3]}>
+            <coneGeometry args={[0.25, 0.4, 8]} />
+            <meshStandardMaterial color="#d4af37" metalness={0.5} roughness={0.5} />
+          </mesh>
+          {/* Deity space */}
+          <mesh position={[0, 0.7, -depth * 0.25]}>
+            <boxGeometry args={[0.3, 0.4, 0.02]} />
+            <meshStandardMaterial color="#ffd700" metalness={0.3} roughness={0.6} />
+          </mesh>
+          {/* Diyas (oil lamps) */}
+          {[-0.25, 0.25].map((dx, i) => (
+            <group key={`diya-${i}`} position={[dx, 0.55, -depth * 0.15]}>
+              <mesh position={[0, 0, 0]}>
+                <cylinderGeometry args={[0.04, 0.06, 0.03, 12]} />
+                <meshStandardMaterial color="#d4af37" metalness={0.6} roughness={0.4} />
+              </mesh>
+              {/* Flame */}
+              <mesh position={[0, 0.05, 0]}>
+                <coneGeometry args={[0.015, 0.04, 8]} />
+                <meshStandardMaterial color="#ff6600" emissive="#ff4400" emissiveIntensity={0.8} />
+              </mesh>
+            </group>
+          ))}
+          {/* Incense holder */}
+          <mesh position={[0, 0.55, -depth * 0.1]}>
+            <cylinderGeometry args={[0.03, 0.05, 0.08, 8]} />
+            <meshStandardMaterial color="#8b4513" />
+          </mesh>
+          {/* Floor mat */}
+          <mesh position={[0, 0.01, depth * 0.15]} rotation={[-Math.PI / 2, 0, 0]}>
+            <planeGeometry args={[width * 0.5, 0.4]} />
+            <meshStandardMaterial color="#8b0000" />
+          </mesh>
+        </group>
+      );
+
+    case 'study':
+      return (
+        <group>
+          {/* Desk */}
+          <mesh position={[0, 0.38, -depth * 0.3]} castShadow>
+            <boxGeometry args={[width * 0.6, 0.04, 0.6]} />
+            <meshStandardMaterial color="#5c4033" />
+          </mesh>
+          {/* Desk legs */}
+          {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([dx, dz], i) => (
+            <mesh key={i} position={[dx * width * 0.27, 0.19, -depth * 0.3 + dz * 0.25]}>
+              <boxGeometry args={[0.04, 0.38, 0.04]} />
+              <meshStandardMaterial color="#4a3728" />
+            </mesh>
+          ))}
+          {/* Office chair */}
+          <group position={[0, 0, 0]}>
+            <mesh position={[0, 0.25, 0]}>
+              <cylinderGeometry args={[0.03, 0.15, 0.25, 8]} />
+              <meshStandardMaterial color="#1a1a1a" />
+            </mesh>
+            <mesh position={[0, 0.42, 0]}>
+              <boxGeometry args={[0.45, 0.08, 0.45]} />
+              <meshStandardMaterial color="#1f1f1f" />
+            </mesh>
+            <mesh position={[0, 0.65, 0.18]}>
+              <boxGeometry args={[0.45, 0.5, 0.08]} />
+              <meshStandardMaterial color="#1f1f1f" />
+            </mesh>
+          </group>
+          {/* Monitor */}
+          <mesh position={[0, 0.65, -depth * 0.4]}>
+            <boxGeometry args={[0.6, 0.4, 0.03]} />
+            <meshStandardMaterial color="#1a1a1a" />
+          </mesh>
+          <mesh position={[0, 0.45, -depth * 0.38]}>
+            <boxGeometry args={[0.15, 0.1, 0.1]} />
+            <meshStandardMaterial color="#2d2d2d" />
+          </mesh>
+          {/* Keyboard */}
+          <mesh position={[0, 0.41, -depth * 0.2]}>
+            <boxGeometry args={[0.4, 0.02, 0.15]} />
+            <meshStandardMaterial color="#2d2d2d" />
+          </mesh>
+          {/* Bookshelf */}
+          <mesh position={[-width * 0.4, 0.8, 0]} castShadow>
+            <boxGeometry args={[0.3, 1.6, depth * 0.4]} />
+            <meshStandardMaterial color="#6b4423" />
+          </mesh>
+          {/* Books */}
+          {[0.2, 0.5, 0.8, 1.1].map((by, i) => (
+            <mesh key={i} position={[-width * 0.4, by, 0]}>
+              <boxGeometry args={[0.25, 0.2, depth * 0.35]} />
+              <meshStandardMaterial color={['#c0392b', '#2980b9', '#27ae60', '#8e44ad'][i]} />
+            </mesh>
+          ))}
+        </group>
+      );
+
+    case 'utility':
+      return (
+        <group>
+          {/* Washing machine */}
+          <mesh position={[-width * 0.25, 0.45, -depth * 0.3]} castShadow>
+            <boxGeometry args={[0.6, 0.9, 0.6]} />
+            <meshStandardMaterial color="#e0e0e0" />
+          </mesh>
+          {/* Washing machine door */}
+          <mesh position={[-width * 0.25, 0.5, -depth * 0.3 + 0.31]}>
+            <cylinderGeometry args={[0.2, 0.2, 0.02, 24]} />
+            <meshStandardMaterial color="#87ceeb" transparent opacity={0.5} />
+          </mesh>
+          {/* Dryer */}
+          <mesh position={[width * 0.25, 0.45, -depth * 0.3]} castShadow>
+            <boxGeometry args={[0.6, 0.9, 0.6]} />
+            <meshStandardMaterial color="#d0d0d0" />
+          </mesh>
+          {/* Utility sink */}
+          <mesh position={[0, 0.45, depth * 0.25]}>
+            <boxGeometry args={[0.6, 0.9, 0.5]} />
+            <meshStandardMaterial color="#f5f5f5" />
+          </mesh>
+          <mesh position={[0, 0.85, depth * 0.25]}>
+            <boxGeometry args={[0.5, 0.2, 0.4]} />
+            <meshStandardMaterial color="#c0c0c0" />
+          </mesh>
+          {/* Shelving */}
+          <mesh position={[width * 0.35, 1.2, 0]}>
+            <boxGeometry args={[0.4, 0.04, depth * 0.4]} />
+            <meshStandardMaterial color="#8b4513" />
+          </mesh>
+          <mesh position={[width * 0.35, 1.6, 0]}>
+            <boxGeometry args={[0.4, 0.04, depth * 0.4]} />
+            <meshStandardMaterial color="#8b4513" />
+          </mesh>
+          {/* Cleaning supplies */}
+          <mesh position={[width * 0.35, 1.35, 0]}>
+            <boxGeometry args={[0.15, 0.25, 0.1]} />
+            <meshStandardMaterial color="#3498db" />
+          </mesh>
+        </group>
+      );
+
+    case 'store':
+      return (
+        <group>
+          {/* Storage shelves */}
+          {[-0.25, 0, 0.25].map((dz, i) => (
+            <group key={`shelf-unit-${i}`} position={[-width * 0.35, 0, dz * depth]}>
+              {/* Vertical supports */}
+              {[-1, 1].map((dx, j) => (
+                <mesh key={j} position={[dx * 0.2, 1.0, 0]}>
+                  <boxGeometry args={[0.04, 2.0, 0.04]} />
+                  <meshStandardMaterial color="#6b6b6b" metalness={0.5} roughness={0.5} />
+                </mesh>
+              ))}
+              {/* Shelves */}
+              {[0.4, 0.9, 1.4, 1.9].map((sy, k) => (
+                <mesh key={k} position={[0, sy, 0]}>
+                  <boxGeometry args={[0.45, 0.03, 0.35]} />
+                  <meshStandardMaterial color="#808080" />
+                </mesh>
+              ))}
+            </group>
+          ))}
+          {/* Boxes on shelves */}
+          {[
+            [-width * 0.35, 0.55, -depth * 0.25],
+            [-width * 0.35, 1.05, 0],
+            [-width * 0.35, 1.55, depth * 0.25],
+          ].map(([bx, by, bz], i) => (
+            <mesh key={`box-${i}`} position={[bx, by, bz]}>
+              <boxGeometry args={[0.3, 0.25, 0.25]} />
+              <meshStandardMaterial color={['#c49a6c', '#8b7355', '#a0522d'][i]} />
+            </mesh>
+          ))}
+          {/* Large storage bins */}
+          <mesh position={[width * 0.2, 0.25, 0]} castShadow>
+            <boxGeometry args={[0.5, 0.5, 0.4]} />
+            <meshStandardMaterial color="#4a90a4" />
+          </mesh>
+        </group>
+      );
+
+    case 'wardrobe':
+      return (
+        <group>
+          {/* Built-in wardrobe */}
+          <mesh position={[0, 1.1, -depth * 0.35]} castShadow>
+            <boxGeometry args={[width * 0.8, 2.2, 0.55]} />
+            <meshStandardMaterial color="#6b4423" />
+          </mesh>
+          {/* Wardrobe doors */}
+          {[-0.25, 0.25].map((dx, i) => (
+            <mesh key={i} position={[dx * width, 1.1, -depth * 0.35 + 0.28]}>
+              <boxGeometry args={[width * 0.38, 2.15, 0.02]} />
+              <meshStandardMaterial color="#8b6914" />
+            </mesh>
+          ))}
+          {/* Door handles */}
+          {[-0.05, 0.05].map((dx, i) => (
+            <mesh key={`handle-${i}`} position={[dx * width, 1.1, -depth * 0.35 + 0.3]}>
+              <boxGeometry args={[0.02, 0.15, 0.02]} />
+              <meshStandardMaterial color="#c0c0c0" metalness={0.7} roughness={0.3} />
+            </mesh>
+          ))}
+          {/* Mirror */}
+          <mesh position={[width * 0.35, 1.2, depth * 0.2]} rotation={[0, 0.1, 0]}>
+            <boxGeometry args={[0.02, 1.6, 0.5]} />
+            <meshStandardMaterial color="#b8d4e8" metalness={0.8} roughness={0.1} />
+          </mesh>
+          {/* Dresser */}
+          <mesh position={[-width * 0.3, 0.35, depth * 0.2]} castShadow>
+            <boxGeometry args={[0.5, 0.7, 0.4]} />
+            <meshStandardMaterial color="#5c4033" />
+          </mesh>
+          {/* Dresser drawers */}
+          {[0.15, 0.4, 0.55].map((dy, i) => (
+            <mesh key={i} position={[-width * 0.3, dy, depth * 0.2 + 0.21]}>
+              <boxGeometry args={[0.45, 0.18, 0.02]} />
+              <meshStandardMaterial color="#6b4423" />
+            </mesh>
+          ))}
+        </group>
+      );
+
+    case 'hallway':
+      return (
+        <group>
+          {/* Console table */}
+          <mesh position={[-width * 0.35, 0.4, 0]} castShadow>
+            <boxGeometry args={[0.4, 0.04, 0.25]} />
+            <meshStandardMaterial color="#5c4033" />
+          </mesh>
+          {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([dx, dz], i) => (
+            <mesh key={i} position={[-width * 0.35 + dx * 0.15, 0.2, dz * 0.1]}>
+              <boxGeometry args={[0.03, 0.4, 0.03]} />
+              <meshStandardMaterial color="#4a3728" />
+            </mesh>
+          ))}
+          {/* Decorative vase */}
+          <mesh position={[-width * 0.35, 0.55, 0]}>
+            <cylinderGeometry args={[0.05, 0.08, 0.2, 12]} />
+            <meshStandardMaterial color="#4a90a4" />
+          </mesh>
+          {/* Wall art */}
+          <mesh position={[-width * 0.35, 1.3, -depth * 0.45]}>
+            <boxGeometry args={[0.4, 0.3, 0.02]} />
+            <meshStandardMaterial color="#d4a574" />
+          </mesh>
+        </group>
+      );
+
+    case 'staircase':
+      return (
+        <group>
+          {/* Stair steps */}
+          {Array.from({ length: Math.min(10, Math.floor(depth / 0.3)) }).map((step, i) => (
+            <mesh key={i} position={[0, 0.1 + i * 0.2, -depth * 0.4 + i * 0.25]} castShadow>
+              <boxGeometry args={[width * 0.8, 0.15, 0.28]} />
+              <meshStandardMaterial color="#8b7355" />
+            </mesh>
+          ))}
+          {/* Handrail */}
+          {[-1, 1].map((side) => (
+            <group key={`rail-${side}`}>
+              {/* Vertical posts */}
+              {[0, 3, 6, 9].map((i) => (
+                <mesh key={i} position={[side * width * 0.42, 0.6 + i * 0.2, -depth * 0.4 + i * 0.25]}>
+                  <boxGeometry args={[0.04, 0.6, 0.04]} />
+                  <meshStandardMaterial color="#5c4033" />
+                </mesh>
+              ))}
+              {/* Rail */}
+              <mesh 
+                position={[side * width * 0.42, 1.0, 0]} 
+                rotation={[Math.atan2(2.0, depth * 0.8), 0, 0]}
+              >
+                <boxGeometry args={[0.06, 0.04, Math.sqrt(depth * depth * 0.64 + 4)]} />
+                <meshStandardMaterial color="#6b4423" />
               </mesh>
             </group>
           ))}
         </group>
       );
-    case 'garage':
-      return (
-        <group>
-          {/* Car body */}
-          <mesh position={[0, 0.4, 0]} castShadow>
-            <boxGeometry args={[width * 0.45, 0.6, depth * 0.65]} />
-            <meshStandardMaterial color="#374151" />
-          </mesh>
-          {/* Car roof */}
-          <mesh position={[0, 0.85, -depth * 0.05]}>
-            <boxGeometry args={[width * 0.38, 0.35, depth * 0.35]} />
-            <meshStandardMaterial color="#374151" />
-          </mesh>
-          {/* Wheels */}
-          {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([dx, dz], i) => (
-            <mesh key={i} position={[dx * width * 0.18, 0.15, dz * depth * 0.22]} rotation={[0, 0, Math.PI / 2]}>
-              <cylinderGeometry args={[0.15, 0.15, 0.08, 16]} />
-              <meshStandardMaterial color="#1f2937" />
-            </mesh>
-          ))}
-        </group>
-      );
-    case 'study':
-      return (
-        <group>
-          {/* Desk */}
-          <mesh position={[0, 0.38, -depth * 0.25]} castShadow>
-            <boxGeometry args={[width * 0.5, 0.04, 0.5]} />
-            <meshStandardMaterial color="#8b7355" />
-          </mesh>
-          {/* Desk legs */}
-          {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([dx, dz], i) => (
-            <mesh key={i} position={[dx * width * 0.22, 0.19, -depth * 0.25 + dz * 0.2]}>
-              <boxGeometry args={[0.04, 0.38, 0.04]} />
-              <meshStandardMaterial color="#5c4033" />
-            </mesh>
-          ))}
-          {/* Chair */}
-          <mesh position={[0, 0.25, 0]} castShadow>
-            <boxGeometry args={[0.4, 0.04, 0.4]} />
-            <meshStandardMaterial color="#4b5563" />
-          </mesh>
-          {/* Monitor */}
-          <mesh position={[0, 0.55, -depth * 0.35]}>
-            <boxGeometry args={[0.5, 0.35, 0.03]} />
-            <meshStandardMaterial color="#1f2937" />
-          </mesh>
-        </group>
-      );
-    case 'hallway':
-    case 'staircase':
-      return (
-        <group>
-          {/* Stair steps indicator */}
-          {type === 'staircase' && (
-            <>
-              {[0, 1, 2, 3, 4].map((step) => (
-                <mesh key={step} position={[0, 0.15 + step * 0.15, -depth * 0.3 + step * 0.15]} castShadow>
-                  <boxGeometry args={[width * 0.7, 0.12, 0.25]} />
-                  <meshStandardMaterial color="#a0a0a0" />
-                </mesh>
-              ))}
-            </>
-          )}
-        </group>
-      );
+
     default:
       return null;
   }

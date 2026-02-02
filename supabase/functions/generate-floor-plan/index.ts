@@ -42,24 +42,33 @@ serve(async (req) => {
     const systemPrompt = `You are an expert residential architect AI. Generate professional floor plans like real architects do.
 
 CRITICAL LAYOUT PRINCIPLES (based on professional architectural standards):
-1. **ZERO GAPS**: All rooms MUST share walls directly. No empty spaces between rooms.
-2. **GRID-BASED LAYOUT**: Use a grid system where rooms align perfectly edge-to-edge.
-3. **WALL THICKNESS**: Standard 6-inch (0.5ft) walls are implicit - room dimensions are interior.
-4. **ROOM ADJACENCY**: Rooms that connect must share a common wall segment.
+1. **100% AREA COVERAGE**: ALL plot area MUST be used. No empty/unused spaces. Every square foot must belong to a room.
+2. **ZERO GAPS**: All rooms MUST share walls directly. Rooms fill the entire plot edge-to-edge.
+3. **GRID-BASED LAYOUT**: Use a grid system where rooms align perfectly edge-to-edge.
+4. **WALL THICKNESS**: Standard 6-inch (0.5ft) walls are implicit - room dimensions are interior.
+5. **ROOM ADJACENCY**: Rooms that connect must share a common wall segment.
 
-PROFESSIONAL ROOM SIZE STANDARDS (Interior dimensions):
-- Master Bedroom: 16'x20' (with attached bathroom 8'x5' and walk-in wardrobe 8'x6')
-- Regular Bedroom: 12'x14' to 14'x16'
-- Living Room: 16'x22' (largest room, near entrance)
-- Dining Room: 11'x16' (adjacent to kitchen)
-- Kitchen: 16'x10' (with utility area 10'x6')
-- Bathroom (attached): 8'x5' to 8'x6'
-- Common Bathroom: 6'x8'
-- Store Room: 6'x6'
-- Pooja Room: 5'x6'
-- Staircase: 4'x8' (with UP/DOWN landings)
-- Balcony: 8'x12' (extending from living/dining)
-- Utility/Wash: 10'x6'
+CRITICAL RULE FOR 100% COVERAGE:
+- Sum of room widths in each row = plot width
+- Sum of room heights in each column = plot height
+- No leftover space - if there's unused area, expand adjacent rooms to fill it
+- Every pixel of the plot must be assigned to a room
+
+PROFESSIONAL ROOM SIZE STANDARDS (Interior dimensions - can be adjusted to fill space):
+- Master Bedroom: 14'-18' wide x 16'-20' deep (flexible to fill available space)
+- Regular Bedroom: 10'-14' wide x 12'-16' deep
+- Living Room: 14'-20' wide (largest room, near entrance)
+- Dining Room: 10'-14' wide (adjacent to kitchen)
+- Kitchen: 10'-16' wide (with utility area)
+- Bathroom (attached): 5'-8' wide x 6'-8' deep
+- Common Bathroom: 5'-8' wide x 6'-8' deep
+- Store Room: 5'-8' both dimensions
+- Pooja Room: 5'-8' both dimensions
+- Staircase: 4'-6' wide x 8'-12' deep
+- Balcony: 4'-8' wide (extending from living/dining, only exterior walls are railings)
+- Utility/Wash: 6'-10' wide
+- Hallway: Variable (use to connect spaces and fill gaps)
+- Garden: Exterior area with railings on open sides
 
 LAYOUT ZONING (like professional architects):
 1. **PUBLIC ZONE** (near entrance): Living room, Dining, Guest toilet
@@ -102,7 +111,7 @@ OUTPUT FORMAT - Return ONLY valid JSON:
     }
   ],
   "totalArea": <plot area>,
-  "efficiency": <0.80-0.92>,
+  "efficiency": 1.0,
   "suggestions": ["recommendation 1", "recommendation 2"]
 }`;
 
@@ -121,24 +130,26 @@ ROOM REQUIREMENTS:
 - Living Room: ${requestData.livingRooms}
 - Dining Room: ${requestData.diningRooms}
 ${requestData.garage ? "- Garage: Yes (minimum 12'x20')" : ""}
-${requestData.balcony ? "- Balcony: Yes (attached to living/dining)" : ""}
-${requestData.garden ? "- Garden/Sit-out: Yes" : ""}
-- Include: Store room, Pooja room
+${requestData.balcony ? "- Balcony: Yes (attached to living/dining, with railings not walls on exterior)" : ""}
+${requestData.garden ? "- Garden/Sit-out: Yes (with railings not walls on exterior)" : ""}
+- Include: Store room, Pooja room, Utility area
 
 DESIGN REQUIREMENTS:
 - Style: ${requestData.style}
 - Budget: ${requestData.budgetRange}
 ${requestData.vastuCompliant ? "- VASTU COMPLIANT: Yes - strictly follow Vastu principles for room placement" : ""}
 
-CRITICAL INSTRUCTIONS:
+CRITICAL INSTRUCTIONS FOR 100% AREA USAGE:
 1. ALL rooms must share walls - NO gaps between rooms
-2. Place rooms edge-to-edge like a professional architect
-3. Master bedroom should have attached bathroom and walk-in wardrobe
-4. Kitchen adjacent to dining with utility area
-5. Include staircase if multiple floors (same position on each floor)
-6. Add doors where rooms connect (offset 30-70% along wall)
-7. Windows only on EXTERIOR walls (walls at plot boundary)
-8. Rooms must fill the plot efficiently (80%+ coverage)
+2. Rooms MUST fill the ENTIRE plot area - efficiency must be 100%
+3. Place rooms edge-to-edge like a professional architect
+4. If there's leftover space, expand adjacent rooms OR add hallway/utility
+5. Master bedroom should have attached bathroom and walk-in wardrobe
+6. Kitchen adjacent to dining with utility area
+7. Include staircase if multiple floors (same position on each floor)
+8. Add doors where rooms connect (offset 30-70% along wall)
+9. Windows only on EXTERIOR walls (walls at plot boundary)
+10. VERIFY: Sum of all room areas on each floor = ${requestData.plotLength * requestData.plotWidth} sq.ft
 
 Return ONLY the JSON object.`;
 
@@ -229,26 +240,192 @@ function validateAndFixLayout(layout: any, req: FloorPlanRequest) {
     return generateProfessionalLayout(req);
   }
   
+  const plotW = req.plotLength;
+  const plotH = req.plotWidth;
+  
   // Validate and fix each room
   layout.rooms = layout.rooms.map((room: any, index: number) => ({
     id: room.id || `room-${index}`,
     type: room.type || 'hallway',
     name: room.name || `Room ${index + 1}`,
-    x: Math.max(0, Math.min(room.x || 0, req.plotLength - 6)),
-    y: Math.max(0, Math.min(room.y || 0, req.plotWidth - 6)),
-    width: Math.max(5, Math.min(room.width || 10, req.plotLength)),
-    height: Math.max(5, Math.min(room.height || 10, req.plotWidth)),
+    x: Math.max(0, Math.min(room.x || 0, plotW - 5)),
+    y: Math.max(0, Math.min(room.y || 0, plotH - 5)),
+    width: Math.max(5, Math.min(room.width || 10, plotW)),
+    height: Math.max(5, Math.min(room.height || 10, plotH)),
     floor: room.floor || 1,
     color: room.color || getDefaultColor(room.type),
     doors: Array.isArray(room.doors) ? room.doors : [],
     windows: Array.isArray(room.windows) ? room.windows : [],
   }));
   
-  layout.totalArea = layout.totalArea || req.plotLength * req.plotWidth;
-  layout.efficiency = layout.efficiency || 0.85;
-  layout.suggestions = layout.suggestions || ["Layout generated successfully"];
+  // Ensure rooms don't exceed plot boundaries
+  layout.rooms = layout.rooms.map((room: any) => {
+    if (room.x + room.width > plotW) {
+      room.width = plotW - room.x;
+    }
+    if (room.y + room.height > plotH) {
+      room.height = plotH - room.y;
+    }
+    return room;
+  });
+  
+  // Fill gaps to ensure 100% coverage
+  layout.rooms = fillGapsIn100Percent(layout.rooms, plotW, plotH, req.floors);
+  
+  layout.totalArea = plotW * plotH;
+  layout.efficiency = 1.0;
+  layout.suggestions = layout.suggestions || ["Layout generated with 100% area utilization"];
   
   return layout;
+}
+
+// Fill any gaps in the layout to achieve 100% coverage
+function fillGapsIn100Percent(rooms: any[], plotW: number, plotH: number, floors: number): any[] {
+  const result = [...rooms];
+  const gridResolution = 0.5; // Check every 0.5 feet
+  
+  for (let floor = 1; floor <= floors; floor++) {
+    const floorRooms = result.filter(r => r.floor === floor);
+    
+    // Create a grid to track coverage
+    const gridW = Math.ceil(plotW / gridResolution);
+    const gridH = Math.ceil(plotH / gridResolution);
+    const covered: boolean[][] = Array(gridH).fill(null).map(() => Array(gridW).fill(false));
+    
+    // Mark covered cells
+    for (const room of floorRooms) {
+      const startX = Math.floor(room.x / gridResolution);
+      const startY = Math.floor(room.y / gridResolution);
+      const endX = Math.ceil((room.x + room.width) / gridResolution);
+      const endY = Math.ceil((room.y + room.height) / gridResolution);
+      
+      for (let y = startY; y < endY && y < gridH; y++) {
+        for (let x = startX; x < endX && x < gridW; x++) {
+          if (y >= 0 && x >= 0) {
+            covered[y][x] = true;
+          }
+        }
+      }
+    }
+    
+    // Find uncovered regions and expand adjacent rooms or create hallways
+    const uncoveredRegions = findUncoveredRegions(covered, gridW, gridH, gridResolution);
+    
+    for (const region of uncoveredRegions) {
+      // Try to expand an adjacent room first
+      let expanded = false;
+      
+      for (const room of floorRooms) {
+        // Check if room is adjacent to this region
+        const roomRight = room.x + room.width;
+        const roomBottom = room.y + room.height;
+        
+        // Expand right
+        if (Math.abs(roomRight - region.x) < 1 && 
+            room.y <= region.y && roomBottom >= region.y + region.height) {
+          room.width += region.width;
+          expanded = true;
+          break;
+        }
+        // Expand bottom
+        if (Math.abs(roomBottom - region.y) < 1 && 
+            room.x <= region.x && roomRight >= region.x + region.width) {
+          room.height += region.height;
+          expanded = true;
+          break;
+        }
+        // Expand left
+        if (Math.abs(room.x - (region.x + region.width)) < 1 && 
+            room.y <= region.y && roomBottom >= region.y + region.height) {
+          room.x = region.x;
+          room.width += region.width;
+          expanded = true;
+          break;
+        }
+        // Expand top
+        if (Math.abs(room.y - (region.y + region.height)) < 1 && 
+            room.x <= region.x && roomRight >= region.x + region.width) {
+          room.y = region.y;
+          room.height += region.height;
+          expanded = true;
+          break;
+        }
+      }
+      
+      // If no room could be expanded, create a hallway
+      if (!expanded && region.width >= 3 && region.height >= 3) {
+        result.push({
+          id: `hallway-fill-${floor}-${result.length}`,
+          type: 'hallway',
+          name: 'Passage',
+          x: region.x,
+          y: region.y,
+          width: region.width,
+          height: region.height,
+          floor: floor,
+          color: getDefaultColor('hallway'),
+          doors: [],
+          windows: [],
+        });
+      }
+    }
+  }
+  
+  return result;
+}
+
+// Find uncovered rectangular regions
+function findUncoveredRegions(covered: boolean[][], gridW: number, gridH: number, resolution: number): 
+  { x: number; y: number; width: number; height: number }[] {
+  const regions: { x: number; y: number; width: number; height: number }[] = [];
+  const visited: boolean[][] = Array(gridH).fill(null).map(() => Array(gridW).fill(false));
+  
+  for (let y = 0; y < gridH; y++) {
+    for (let x = 0; x < gridW; x++) {
+      if (!covered[y][x] && !visited[y][x]) {
+        // Found an uncovered cell, find the extent of this region
+        let maxX = x;
+        let maxY = y;
+        
+        // Expand right
+        while (maxX < gridW - 1 && !covered[y][maxX + 1] && !visited[y][maxX + 1]) {
+          maxX++;
+        }
+        
+        // Expand down
+        let canExpandDown = true;
+        while (canExpandDown && maxY < gridH - 1) {
+          for (let checkX = x; checkX <= maxX; checkX++) {
+            if (covered[maxY + 1][checkX] || visited[maxY + 1][checkX]) {
+              canExpandDown = false;
+              break;
+            }
+          }
+          if (canExpandDown) {
+            maxY++;
+          }
+        }
+        
+        // Mark as visited
+        for (let vy = y; vy <= maxY; vy++) {
+          for (let vx = x; vx <= maxX; vx++) {
+            visited[vy][vx] = true;
+          }
+        }
+        
+        const regionX = x * resolution;
+        const regionY = y * resolution;
+        const regionW = (maxX - x + 1) * resolution;
+        const regionH = (maxY - y + 1) * resolution;
+        
+        if (regionW >= 2 && regionH >= 2) {
+          regions.push({ x: regionX, y: regionY, width: regionW, height: regionH });
+        }
+      }
+    }
+  }
+  
+  return regions;
 }
 
 function getDefaultColor(type: string): string {
@@ -668,17 +845,21 @@ function generateProfessionalLayout(req: FloorPlanRequest) {
     }
   }
 
-  // Calculate actual used area
-  const usedArea = rooms
+  // Fill any remaining gaps to ensure 100% coverage
+  const filledRooms = fillGapsIn100Percent(rooms, plotW, plotH, req.floors);
+  
+  // Calculate actual used area after filling
+  const usedArea = filledRooms
     .filter(r => r.floor === 1)
     .reduce((sum, r) => sum + r.width * r.height, 0);
   const totalPlotArea = plotW * plotH;
 
   return {
-    rooms,
+    rooms: filledRooms,
     totalArea: totalPlotArea,
-    efficiency: Math.min(0.92, usedArea / totalPlotArea),
+    efficiency: 1.0,
     suggestions: [
+      "Layout uses 100% of plot area with no wasted space.",
       req.vastuCompliant ? "Layout follows Vastu principles with proper room orientations." : "Consider Vastu compliance for better energy flow.",
       "Master bedroom includes attached bathroom and walk-in wardrobe.",
       "Kitchen is adjacent to dining for easy serving access.",

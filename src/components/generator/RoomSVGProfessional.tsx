@@ -326,6 +326,46 @@ const getDefaultFurniture = (roomType: RoomType): { type: Furniture['type']; x: 
   }
 };
 
+// Check if a room type should have railings instead of walls on exterior edges
+const isRailingRoom = (type: RoomType): boolean => {
+  return type === 'balcony' || type === 'garden';
+};
+
+// Railing SVG component for balconies and gardens
+const RailingSVG = ({ 
+  x1, y1, x2, y2 
+}: { 
+  x1: number; y1: number; x2: number; y2: number;
+}) => {
+  const length = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+  const angle = Math.atan2(y2 - y1, x2 - x1) * (180 / Math.PI);
+  const postCount = Math.max(2, Math.floor(length / 15) + 1);
+  const balusterCount = Math.max(5, Math.floor(length / 4));
+  
+  return (
+    <g transform={`translate(${x1}, ${y1}) rotate(${angle})`}>
+      {/* Main rail line */}
+      <line x1={0} y1={0} x2={length} y2={0} stroke="#1a1a1a" strokeWidth={1} />
+      {/* Posts */}
+      {Array.from({ length: postCount }).map((_, i) => {
+        const px = (i * length) / (postCount - 1);
+        return (
+          <g key={`post-${i}`}>
+            <rect x={px - 1.5} y={-4} width={3} height={8} fill="none" stroke="#1a1a1a" strokeWidth={0.5} />
+          </g>
+        );
+      })}
+      {/* Balusters */}
+      {Array.from({ length: balusterCount }).map((_, i) => {
+        const bx = 2 + (i * (length - 4)) / (balusterCount - 1);
+        return (
+          <line key={`baluster-${i}`} x1={bx} y1={-3} x2={bx} y2={3} stroke="#1a1a1a" strokeWidth={0.3} />
+        );
+      })}
+    </g>
+  );
+};
+
 // Room component - professional monochrome style
 const RoomSVGProfessional = ({ room, scale, zoom, wallThickness, allRooms }: RoomSVGProps) => {
   const x = room.x * scale * zoom;
@@ -338,37 +378,31 @@ const RoomSVGProfessional = ({ room, scale, zoom, wallThickness, allRooms }: Roo
   const isInteriorLeft = checkAdjacentWall(room, 'left', allRooms);
   const isInteriorRight = checkAdjacentWall(room, 'right', allRooms);
   
+  const isRailing = isRailingRoom(room.type);
+  
   const defaultFurnitureSizes = getDefaultFurniture(room.type);
   
   // Professional wall thickness: 9" exterior, 6" interior (scaled)
   const exteriorWallWidth = wallThickness * 1.5;
   const interiorWallWidth = wallThickness;
   
+  // Determine which edges get railings vs walls for balcony/garden
+  const shouldRenderRailing = (side: 'top' | 'bottom' | 'left' | 'right'): boolean => {
+    if (!isRailing) return false;
+    switch (side) {
+      case 'top': return !isInteriorTop;
+      case 'bottom': return !isInteriorBottom;
+      case 'left': return !isInteriorLeft;
+      case 'right': return !isInteriorRight;
+    }
+  };
+
   // Room-specific decorative elements
   const getRoomDecoration = () => {
     const stroke = '#1a1a1a';
     const strokeWidth = 0.5;
     
     switch (room.type) {
-      case 'balcony':
-        // Railing pattern on exterior edges
-        return (
-          <g>
-            {/* Railing pattern - vertical lines along exterior edges */}
-            {!isInteriorTop && Array.from({ length: Math.max(3, Math.floor(width / 8)) }).map((_, i) => {
-              const railX = 4 + (i * (width - 8) / Math.max(2, Math.floor(width / 8) - 1));
-              return <line key={`rail-t-${i}`} x1={railX} y1={2} x2={railX} y2={8} stroke={stroke} strokeWidth={strokeWidth} />;
-            })}
-            {!isInteriorBottom && Array.from({ length: Math.max(3, Math.floor(width / 8)) }).map((_, i) => {
-              const railX = 4 + (i * (width - 8) / Math.max(2, Math.floor(width / 8) - 1));
-              return <line key={`rail-b-${i}`} x1={railX} y1={height - 8} x2={railX} y2={height - 2} stroke={stroke} strokeWidth={strokeWidth} />;
-            })}
-            {/* Horizontal rail lines */}
-            {!isInteriorTop && <line x1={2} y1={5} x2={width - 2} y2={5} stroke={stroke} strokeWidth={strokeWidth} />}
-            {!isInteriorBottom && <line x1={2} y1={height - 5} x2={width - 2} y2={height - 5} stroke={stroke} strokeWidth={strokeWidth} />}
-          </g>
-        );
-      
       case 'garden':
         // Tree and plant symbols
         return (
@@ -453,6 +487,10 @@ const RoomSVGProfessional = ({ room, scale, zoom, wallThickness, allRooms }: Roo
           </g>
         );
       
+      case 'balcony':
+        // For balcony, decorations are handled via railings
+        return null;
+      
       default:
         return null;
     }
@@ -469,7 +507,7 @@ const RoomSVGProfessional = ({ room, scale, zoom, wallThickness, allRooms }: Roo
         fill="#ffffff"
       />
       
-      {/* Interior walls */}
+      {/* Interior walls - always solid */}
       {isInteriorTop && (
         <line x1={0} y1={0} x2={width} y2={0} stroke="#1a1a1a" strokeWidth={interiorWallWidth} />
       )}
@@ -483,18 +521,34 @@ const RoomSVGProfessional = ({ room, scale, zoom, wallThickness, allRooms }: Roo
         <line x1={width} y1={0} x2={width} y2={height} stroke="#1a1a1a" strokeWidth={interiorWallWidth} />
       )}
       
-      {/* Exterior walls - thicker */}
+      {/* Exterior edges - walls for regular rooms, railings for balcony/garden */}
       {!isInteriorTop && (
-        <line x1={0} y1={0} x2={width} y2={0} stroke="#1a1a1a" strokeWidth={exteriorWallWidth} />
+        shouldRenderRailing('top') ? (
+          <RailingSVG x1={0} y1={0} x2={width} y2={0} />
+        ) : (
+          <line x1={0} y1={0} x2={width} y2={0} stroke="#1a1a1a" strokeWidth={exteriorWallWidth} />
+        )
       )}
       {!isInteriorBottom && (
-        <line x1={0} y1={height} x2={width} y2={height} stroke="#1a1a1a" strokeWidth={exteriorWallWidth} />
+        shouldRenderRailing('bottom') ? (
+          <RailingSVG x1={0} y1={height} x2={width} y2={height} />
+        ) : (
+          <line x1={0} y1={height} x2={width} y2={height} stroke="#1a1a1a" strokeWidth={exteriorWallWidth} />
+        )
       )}
       {!isInteriorLeft && (
-        <line x1={0} y1={0} x2={0} y2={height} stroke="#1a1a1a" strokeWidth={exteriorWallWidth} />
+        shouldRenderRailing('left') ? (
+          <RailingSVG x1={0} y1={0} x2={0} y2={height} />
+        ) : (
+          <line x1={0} y1={0} x2={0} y2={height} stroke="#1a1a1a" strokeWidth={exteriorWallWidth} />
+        )
       )}
       {!isInteriorRight && (
-        <line x1={width} y1={0} x2={width} y2={height} stroke="#1a1a1a" strokeWidth={exteriorWallWidth} />
+        shouldRenderRailing('right') ? (
+          <RailingSVG x1={width} y1={0} x2={width} y2={height} />
+        ) : (
+          <line x1={width} y1={0} x2={width} y2={height} stroke="#1a1a1a" strokeWidth={exteriorWallWidth} />
+        )
       )}
       
       {/* Room-specific decorations */}

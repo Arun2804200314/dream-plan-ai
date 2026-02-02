@@ -486,6 +486,65 @@ function SegmentedWall({
   );
 }
 
+// Check if a room type should have railings instead of walls on exterior edges
+const isRailingRoom = (type: RoomType): boolean => {
+  return type === 'balcony' || type === 'garden';
+};
+
+// 3D Railing component for balconies and gardens
+function Railing3D({ 
+  start, 
+  end, 
+  height = 1.0 
+}: { 
+  start: [number, number]; 
+  end: [number, number]; 
+  height?: number;
+}) {
+  const length = Math.sqrt(Math.pow(end[0] - start[0], 2) + Math.pow(end[1] - start[1], 2));
+  const angle = Math.atan2(end[1] - start[1], end[0] - start[0]);
+  const midX = (start[0] + end[0]) / 2;
+  const midZ = (start[1] + end[1]) / 2;
+  
+  const postCount = Math.max(2, Math.floor(length / 0.6) + 1);
+  const balusterCount = Math.max(3, Math.floor(length / 0.1));
+  
+  return (
+    <group position={[midX, 0, midZ]} rotation={[0, -angle, 0]}>
+      {/* Posts */}
+      {Array.from({ length: postCount }).map((_, i) => {
+        const x = -length / 2 + (i * length / (postCount - 1));
+        return (
+          <mesh key={`post-${i}`} position={[x, height / 2, 0]} castShadow>
+            <boxGeometry args={[0.05, height, 0.05]} />
+            <meshStandardMaterial color="#3d3d3d" metalness={0.7} roughness={0.3} />
+          </mesh>
+        );
+      })}
+      {/* Top rail */}
+      <mesh position={[0, height, 0]}>
+        <boxGeometry args={[length, 0.05, 0.06]} />
+        <meshStandardMaterial color="#3d3d3d" metalness={0.7} roughness={0.3} />
+      </mesh>
+      {/* Middle rail */}
+      <mesh position={[0, height * 0.5, 0]}>
+        <boxGeometry args={[length, 0.03, 0.04]} />
+        <meshStandardMaterial color="#4a4a4a" metalness={0.6} roughness={0.4} />
+      </mesh>
+      {/* Balusters */}
+      {Array.from({ length: balusterCount }).map((_, i) => {
+        const x = -length / 2 + 0.05 + (i * (length - 0.1) / (balusterCount - 1));
+        return (
+          <mesh key={`baluster-${i}`} position={[x, height * 0.5, 0]}>
+            <boxGeometry args={[0.015, height * 0.9, 0.015]} />
+            <meshStandardMaterial color="#5a5a5a" metalness={0.5} roughness={0.5} />
+          </mesh>
+        );
+      })}
+    </group>
+  );
+}
+
 function Room3D({ room, plotWidth, plotLength, floorHeight, allRooms }: Room3DProps) {
   const materials = getRoomMaterial(room.type);
   
@@ -494,6 +553,8 @@ function Room3D({ room, plotWidth, plotLength, floorHeight, allRooms }: Room3DPr
   const width = room.width * SCALE;
   const depth = room.height * SCALE;
   const baseY = (room.floor - 1) * floorHeight;
+  
+  const isRailing = isRailingRoom(room.type);
   
   // Build wall segments for each side
   const topSegments = buildWallSegments(room, 'top', allRooms);
@@ -513,6 +574,16 @@ function Room3D({ room, plotWidth, plotLength, floorHeight, allRooms }: Room3DPr
   const leftWall = getDoorWindowsForWall('left');
   const rightWall = getDoorWindowsForWall('right');
 
+  // Helper to check if a side is exterior (not shared with another room)
+  const isExteriorSide = (segments: WallSegmentInfo[]): boolean => {
+    return segments.some(seg => !seg.isShared);
+  };
+
+  const topIsExterior = isExteriorSide(topSegments);
+  const bottomIsExterior = isExteriorSide(bottomSegments);
+  const leftIsExterior = isExteriorSide(leftSegments);
+  const rightIsExterior = isExteriorSide(rightSegments);
+
   return (
     <group position={[x + width / 2, baseY, z + depth / 2]}>
       {/* Floor */}
@@ -527,79 +598,138 @@ function Room3D({ room, plotWidth, plotLength, floorHeight, allRooms }: Room3DPr
         <meshStandardMaterial color={materials.floor} />
       </mesh>
 
-      {/* Ceiling */}
-      <mesh position={[0, floorHeight - 0.02, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[width, depth]} />
-        <meshStandardMaterial color="#ffffff" />
-      </mesh>
+      {/* Ceiling - skip for balcony/garden (open air) */}
+      {!isRailing && (
+        <mesh position={[0, floorHeight - 0.02, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[width, depth]} />
+          <meshStandardMaterial color="#ffffff" />
+        </mesh>
+      )}
 
-      {/* Top wall segments */}
-      {topSegments.map((seg, i) => (
-        <SegmentedWall
-          key={`top-${i}`}
-          room={room}
-          side="top"
-          segment={seg}
-          wallLength={room.width}
-          width={width}
-          depth={depth}
-          floorHeight={floorHeight}
-          color={materials.wall}
-          doors={topWall.doors}
-          windows={topWall.windows}
-        />
-      ))}
+      {/* Top wall segments - use railings for exterior edges of balcony/garden */}
+      {topSegments.map((seg, i) => {
+        if (isRailing && !seg.isShared) {
+          // Render railing instead of wall for exterior edge
+          const segmentLength = (seg.end - seg.start) * SCALE;
+          const segmentOffset = seg.start * SCALE;
+          return (
+            <Railing3D
+              key={`top-railing-${i}`}
+              start={[-width / 2 + segmentOffset, -depth / 2]}
+              end={[-width / 2 + segmentOffset + segmentLength, -depth / 2]}
+              height={1.0}
+            />
+          );
+        }
+        return (
+          <SegmentedWall
+            key={`top-${i}`}
+            room={room}
+            side="top"
+            segment={seg}
+            wallLength={room.width}
+            width={width}
+            depth={depth}
+            floorHeight={floorHeight}
+            color={materials.wall}
+            doors={topWall.doors}
+            windows={topWall.windows}
+          />
+        );
+      })}
 
       {/* Bottom wall segments */}
-      {bottomSegments.map((seg, i) => (
-        <SegmentedWall
-          key={`bottom-${i}`}
-          room={room}
-          side="bottom"
-          segment={seg}
-          wallLength={room.width}
-          width={width}
-          depth={depth}
-          floorHeight={floorHeight}
-          color={materials.wall}
-          doors={bottomWall.doors}
-          windows={bottomWall.windows}
-        />
-      ))}
+      {bottomSegments.map((seg, i) => {
+        if (isRailing && !seg.isShared) {
+          const segmentLength = (seg.end - seg.start) * SCALE;
+          const segmentOffset = seg.start * SCALE;
+          return (
+            <Railing3D
+              key={`bottom-railing-${i}`}
+              start={[-width / 2 + segmentOffset, depth / 2]}
+              end={[-width / 2 + segmentOffset + segmentLength, depth / 2]}
+              height={1.0}
+            />
+          );
+        }
+        return (
+          <SegmentedWall
+            key={`bottom-${i}`}
+            room={room}
+            side="bottom"
+            segment={seg}
+            wallLength={room.width}
+            width={width}
+            depth={depth}
+            floorHeight={floorHeight}
+            color={materials.wall}
+            doors={bottomWall.doors}
+            windows={bottomWall.windows}
+          />
+        );
+      })}
 
       {/* Left wall segments */}
-      {leftSegments.map((seg, i) => (
-        <SegmentedWall
-          key={`left-${i}`}
-          room={room}
-          side="left"
-          segment={seg}
-          wallLength={room.height}
-          width={width}
-          depth={depth}
-          floorHeight={floorHeight}
-          color={materials.wall}
-          doors={leftWall.doors}
-          windows={leftWall.windows}
-        />
-      ))}
+      {leftSegments.map((seg, i) => {
+        if (isRailing && !seg.isShared) {
+          const segmentLength = (seg.end - seg.start) * SCALE;
+          const segmentOffset = seg.start * SCALE;
+          return (
+            <Railing3D
+              key={`left-railing-${i}`}
+              start={[-width / 2, -depth / 2 + segmentOffset]}
+              end={[-width / 2, -depth / 2 + segmentOffset + segmentLength]}
+              height={1.0}
+            />
+          );
+        }
+        return (
+          <SegmentedWall
+            key={`left-${i}`}
+            room={room}
+            side="left"
+            segment={seg}
+            wallLength={room.height}
+            width={width}
+            depth={depth}
+            floorHeight={floorHeight}
+            color={materials.wall}
+            doors={leftWall.doors}
+            windows={leftWall.windows}
+          />
+        );
+      })}
 
       {/* Right wall segments */}
-      {rightSegments.map((seg, i) => (
-        <SegmentedWall
-          key={`right-${i}`}
-          room={room}
-          side="right"
-          segment={seg}
-          wallLength={room.height}
-          width={width}
-          depth={depth}
-          floorHeight={floorHeight}
-          color={materials.wall}
-          doors={rightWall.doors}
-          windows={rightWall.windows}
-        />
-      ))}
+      {rightSegments.map((seg, i) => {
+        if (isRailing && !seg.isShared) {
+          const segmentLength = (seg.end - seg.start) * SCALE;
+          const segmentOffset = seg.start * SCALE;
+          return (
+            <Railing3D
+              key={`right-railing-${i}`}
+              start={[width / 2, -depth / 2 + segmentOffset]}
+              end={[width / 2, -depth / 2 + segmentOffset + segmentLength]}
+              height={1.0}
+            />
+          );
+        }
+        return (
+          <SegmentedWall
+            key={`right-${i}`}
+            room={room}
+            side="right"
+            segment={seg}
+            wallLength={room.height}
+            width={width}
+            depth={depth}
+            floorHeight={floorHeight}
+            color={materials.wall}
+            doors={rightWall.doors}
+            windows={rightWall.windows}
+          />
+        );
+      })}
 
       <Text
         position={[0, floorHeight + 0.3, 0]}
@@ -948,60 +1078,11 @@ function RoomFurniture({ type, width, depth }: { type: RoomType; width: number; 
       );
 
     case 'balcony':
+      // Railings are now handled by the wall system, just add furniture
       return (
         <group>
-          {/* Railing posts */}
-          {Array.from({ length: Math.max(3, Math.floor(width / 0.8)) }).map((_, i, arr) => {
-            const x = -width / 2 + 0.15 + (i * (width - 0.3) / (arr.length - 1));
-            return (
-              <group key={`front-${i}`}>
-                <mesh position={[x, 0.5, -depth / 2 + 0.05]}>
-                  <boxGeometry args={[0.05, 1.0, 0.05]} />
-                  <meshStandardMaterial color="#4a4a4a" metalness={0.6} roughness={0.4} />
-                </mesh>
-              </group>
-            );
-          })}
-          {/* Top rail - front */}
-          <mesh position={[0, 1.0, -depth / 2 + 0.05]}>
-            <boxGeometry args={[width - 0.1, 0.05, 0.08]} />
-            <meshStandardMaterial color="#4a4a4a" metalness={0.6} roughness={0.4} />
-          </mesh>
-          {/* Bottom rail - front */}
-          <mesh position={[0, 0.15, -depth / 2 + 0.05]}>
-            <boxGeometry args={[width - 0.1, 0.03, 0.06]} />
-            <meshStandardMaterial color="#4a4a4a" metalness={0.6} roughness={0.4} />
-          </mesh>
-          {/* Vertical balusters - front */}
-          {Array.from({ length: Math.max(5, Math.floor(width / 0.15)) }).map((_, i, arr) => {
-            const x = -width / 2 + 0.1 + (i * (width - 0.2) / (arr.length - 1));
-            return (
-              <mesh key={`baluster-${i}`} position={[x, 0.55, -depth / 2 + 0.05]}>
-                <boxGeometry args={[0.02, 0.8, 0.02]} />
-                <meshStandardMaterial color="#5a5a5a" metalness={0.5} roughness={0.5} />
-              </mesh>
-            );
-          })}
-          {/* Side railings */}
-          {[-1, 1].map((side) => (
-            <group key={`side-${side}`}>
-              <mesh position={[side * (width / 2 - 0.05), 1.0, 0]}>
-                <boxGeometry args={[0.08, 0.05, depth - 0.1]} />
-                <meshStandardMaterial color="#4a4a4a" metalness={0.6} roughness={0.4} />
-              </mesh>
-              {Array.from({ length: Math.max(3, Math.floor(depth / 0.15)) }).map((_, i, arr) => {
-                const z = -depth / 2 + 0.1 + (i * (depth - 0.2) / (arr.length - 1));
-                return (
-                  <mesh key={`side-baluster-${i}`} position={[side * (width / 2 - 0.05), 0.55, z]}>
-                    <boxGeometry args={[0.02, 0.8, 0.02]} />
-                    <meshStandardMaterial color="#5a5a5a" metalness={0.5} roughness={0.5} />
-                  </mesh>
-                );
-              })}
-            </group>
-          ))}
-          {/* Potted plants */}
-          {[[-width * 0.3, depth * 0.2], [width * 0.3, depth * 0.2]].map(([px, pz], i) => (
+          {/* Potted plants along the edges */}
+          {[[-width * 0.35, -depth * 0.3], [width * 0.35, -depth * 0.3], [-width * 0.35, depth * 0.3], [width * 0.35, depth * 0.3]].map(([px, pz], i) => (
             <group key={`plant-${i}`} position={[px, 0, pz]}>
               <mesh position={[0, 0.15, 0]}>
                 <cylinderGeometry args={[0.12, 0.1, 0.3, 12]} />
@@ -1014,7 +1095,7 @@ function RoomFurniture({ type, width, depth }: { type: RoomType; width: number; 
             </group>
           ))}
           {/* Outdoor chair */}
-          <group position={[0, 0, depth * 0.15]}>
+          <group position={[0, 0, 0]}>
             <mesh position={[0, 0.2, 0]}>
               <boxGeometry args={[0.5, 0.04, 0.5]} />
               <meshStandardMaterial color="#deb887" />
@@ -1022,6 +1103,24 @@ function RoomFurniture({ type, width, depth }: { type: RoomType; width: number; 
             <mesh position={[0, 0.4, 0.22]}>
               <boxGeometry args={[0.5, 0.38, 0.04]} />
               <meshStandardMaterial color="#deb887" />
+            </mesh>
+            {/* Chair legs */}
+            {[[-0.2, -0.2], [0.2, -0.2], [-0.2, 0.2], [0.2, 0.2]].map(([lx, lz], li) => (
+              <mesh key={li} position={[lx, 0.1, lz]}>
+                <boxGeometry args={[0.03, 0.2, 0.03]} />
+                <meshStandardMaterial color="#c4a574" />
+              </mesh>
+            ))}
+          </group>
+          {/* Small side table */}
+          <group position={[width * 0.2, 0, 0]}>
+            <mesh position={[0, 0.25, 0]}>
+              <cylinderGeometry args={[0.15, 0.15, 0.02, 16]} />
+              <meshStandardMaterial color="#8b4513" />
+            </mesh>
+            <mesh position={[0, 0.12, 0]}>
+              <cylinderGeometry args={[0.03, 0.03, 0.24, 8]} />
+              <meshStandardMaterial color="#6b4423" />
             </mesh>
           </group>
         </group>

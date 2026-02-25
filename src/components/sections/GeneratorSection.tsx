@@ -1,7 +1,7 @@
 import { useState } from "react";
 import PlanGeneratorForm from "@/components/generator/PlanGeneratorForm";
 import FloorPlanViewer from "@/components/generator/FloorPlanViewer";
-import { FormData, GeneratedLayout } from "@/types/floorPlan";
+import { FormData, GeneratedLayout, ROOM_COLORS, RoomType } from "@/types/floorPlan";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -9,11 +9,120 @@ interface GeneratorSectionProps {
   scrollRef: React.RefObject<HTMLDivElement>;
 }
 
+interface GenerationRequestBody {
+  plotLength: number;
+  plotWidth: number;
+  floors: number;
+  bedrooms: number;
+  bathrooms: number;
+  kitchens: number;
+  livingRooms: number;
+  diningRooms: number;
+  garage: boolean;
+  balcony: boolean;
+  garden: boolean;
+  style: string;
+  budgetRange: string;
+  vastuCompliant: boolean;
+}
+
+const roomNames: Record<RoomType, string> = {
+  bedroom: "Bedroom",
+  bathroom: "Bathroom",
+  kitchen: "Kitchen",
+  living: "Living Room",
+  dining: "Dining Room",
+  garage: "Garage",
+  balcony: "Balcony",
+  garden: "Garden",
+  hallway: "Hallway",
+  staircase: "Staircase",
+  pooja: "Pooja Room",
+  study: "Study",
+  utility: "Utility",
+  store: "Store",
+  wardrobe: "Wardrobe",
+};
+
+const getRequestedRoomTypes = (request: GenerationRequestBody, floor: number): RoomType[] => {
+  const base: RoomType[] = [
+    ...Array.from({ length: Math.max(1, request.livingRooms) }, () => "living" as const),
+    ...Array.from({ length: Math.max(1, request.kitchens) }, () => "kitchen" as const),
+    ...Array.from({ length: Math.max(1, request.diningRooms) }, () => "dining" as const),
+    ...Array.from({ length: Math.max(1, request.bedrooms) }, () => "bedroom" as const),
+    ...Array.from({ length: Math.max(1, request.bathrooms) }, () => "bathroom" as const),
+  ];
+
+  if (floor === 1) {
+    if (request.garage) base.push("garage");
+    if (request.balcony) base.push("balcony");
+    if (request.garden) base.push("garden");
+  }
+
+  return base;
+};
+
+const generateOfflineFallbackLayout = (request: GenerationRequestBody): GeneratedLayout => {
+  const rooms: GeneratedLayout["rooms"] = [];
+
+  for (let floor = 1; floor <= request.floors; floor++) {
+    const requestedTypes = getRequestedRoomTypes(request, floor);
+    const cellCount = Math.max(4, requestedTypes.length);
+    const cols = Math.ceil(Math.sqrt(cellCount));
+    const rows = Math.ceil(cellCount / cols);
+    const cellWidth = request.plotLength / cols;
+    const cellHeight = request.plotWidth / rows;
+
+    const typeCounts = new Map<RoomType, number>();
+
+    for (let index = 0; index < rows * cols; index++) {
+      const roomType = requestedTypes[index] ?? "hallway";
+      const count = (typeCounts.get(roomType) ?? 0) + 1;
+      typeCounts.set(roomType, count);
+
+      const col = index % cols;
+      const row = Math.floor(index / cols);
+      const isLastCol = col === cols - 1;
+      const isLastRow = row === rows - 1;
+
+      const x = col * cellWidth;
+      const y = row * cellHeight;
+      const width = isLastCol ? request.plotLength - x : cellWidth;
+      const height = isLastRow ? request.plotWidth - y : cellHeight;
+
+      rooms.push({
+        id: `offline-${floor}-${roomType}-${count}`,
+        type: roomType,
+        name: `${roomNames[roomType]} ${count}`,
+        x,
+        y,
+        width,
+        height,
+        floor,
+        color: ROOM_COLORS[roomType],
+        doors: [],
+        windows: [],
+      });
+    }
+  }
+
+  return {
+    rooms,
+    totalArea: request.plotLength * request.plotWidth,
+    efficiency: 1,
+    wallThickness: 0.5,
+    suggestions: [
+      "Generated from local fallback because network request failed.",
+      "Please retry generation when your network is stable for an AI-optimized plan.",
+    ],
+  };
+};
+
 const GeneratorSection = ({ scrollRef }: GeneratorSectionProps) => {
   const [generatedPlan, setGeneratedPlan] = useState<{ formData: FormData; layout: GeneratedLayout } | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const buildRequestBody = (data: FormData) => ({
+  const buildRequestBody = (data: FormData): GenerationRequestBody => ({
     plotLength: parseInt(data.plotLength) || 60,
     plotWidth: parseInt(data.plotWidth) || 40,
     floors: parseInt(data.floors) || 1,
@@ -30,7 +139,7 @@ const GeneratorSection = ({ scrollRef }: GeneratorSectionProps) => {
     vastuCompliant: data.vastuCompliant,
   });
 
-  const invokeGenerateFloorPlan = async (requestBody: ReturnType<typeof buildRequestBody>) => {
+  const invokeGenerateFloorPlan = async (requestBody: GenerationRequestBody) => {
     const { data: result, error } = await supabase.functions.invoke("generate-floor-plan", {
       body: requestBody,
     });
@@ -89,9 +198,17 @@ const GeneratorSection = ({ scrollRef }: GeneratorSectionProps) => {
       }
 
       if (!layout) {
-        throw lastError instanceof Error ? lastError : new Error("Failed to generate plan");
+        const message = lastError instanceof Error ? lastError.message : String(lastError);
+        const isFetchIssue = message.includes("Failed to fetch") || message.includes("Failed to send a request");
+
+        if (isFetchIssue) {
+          layout = generateOfflineFallbackLayout(requestBody);
+          toast.warning("Network issue detected. Showing local fallback plan.");
+        } else {
+          throw lastError instanceof Error ? lastError : new Error("Failed to generate plan");
+        }
       }
-      
+
       setGeneratedPlan({ formData: data, layout });
       toast.success("Floor plan generated!");
     } catch (err) {

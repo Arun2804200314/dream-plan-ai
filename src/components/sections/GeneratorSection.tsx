@@ -13,36 +13,90 @@ const GeneratorSection = ({ scrollRef }: GeneratorSectionProps) => {
   const [generatedPlan, setGeneratedPlan] = useState<{ formData: FormData; layout: GeneratedLayout } | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
+  const buildRequestBody = (data: FormData) => ({
+    plotLength: parseInt(data.plotLength) || 60,
+    plotWidth: parseInt(data.plotWidth) || 40,
+    floors: parseInt(data.floors) || 1,
+    bedrooms: data.bedrooms,
+    bathrooms: data.bathrooms,
+    kitchens: data.kitchens,
+    livingRooms: data.livingRooms,
+    diningRooms: data.diningRooms,
+    garage: data.garage,
+    balcony: data.balcony,
+    garden: data.garden,
+    style: data.style,
+    budgetRange: data.budgetRange,
+    vastuCompliant: data.vastuCompliant,
+  });
+
+  const invokeGenerateFloorPlan = async (requestBody: ReturnType<typeof buildRequestBody>) => {
+    const { data: result, error } = await supabase.functions.invoke("generate-floor-plan", {
+      body: requestBody,
+    });
+
+    if (!error) {
+      return result as GeneratedLayout;
+    }
+
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const isFetchIssue = errorMessage.includes("Failed to fetch") || errorMessage.includes("Failed to send a request");
+
+    if (!isFetchIssue) {
+      throw error;
+    }
+
+    const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-floor-plan`;
+    const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+    const fallbackResponse = await fetch(functionUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: anonKey,
+        Authorization: `Bearer ${anonKey}`,
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    const fallbackData = await fallbackResponse.json();
+
+    if (!fallbackResponse.ok) {
+      throw new Error(fallbackData?.error || "Failed to generate plan");
+    }
+
+    return fallbackData as GeneratedLayout;
+  };
+
   const handleGenerate = async (data: FormData) => {
     setIsGenerating(true);
     try {
-      const { data: result, error } = await supabase.functions.invoke('generate-floor-plan', {
-        body: {
-          plotLength: parseInt(data.plotLength) || 60,
-          plotWidth: parseInt(data.plotWidth) || 40,
-          floors: parseInt(data.floors) || 1,
-          bedrooms: data.bedrooms,
-          bathrooms: data.bathrooms,
-          kitchens: data.kitchens,
-          livingRooms: data.livingRooms,
-          diningRooms: data.diningRooms,
-          garage: data.garage,
-          balcony: data.balcony,
-          garden: data.garden,
-          style: data.style,
-          budgetRange: data.budgetRange,
-          vastuCompliant: data.vastuCompliant,
-        }
-      });
+      const requestBody = buildRequestBody(data);
 
-      if (error) throw error;
-      if (result.error) throw new Error(result.error);
+      let layout: GeneratedLayout | null = null;
+      let lastError: unknown = null;
+
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          layout = await invokeGenerateFloorPlan(requestBody);
+          break;
+        } catch (error) {
+          lastError = error;
+          if (attempt === 0) {
+            await new Promise((resolve) => setTimeout(resolve, 1200));
+          }
+        }
+      }
+
+      if (!layout) {
+        throw lastError instanceof Error ? lastError : new Error("Failed to generate plan");
+      }
       
-      setGeneratedPlan({ formData: data, layout: result as GeneratedLayout });
-      toast.success('Floor plan generated!');
+      setGeneratedPlan({ formData: data, layout });
+      toast.success("Floor plan generated!");
     } catch (err) {
-      console.error('Generation error:', err);
-      toast.error(err instanceof Error ? err.message : 'Failed to generate plan');
+      console.error("Generation error:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to generate plan");
     } finally {
       setIsGenerating(false);
     }

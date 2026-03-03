@@ -57,7 +57,7 @@ const FloorPlanViewer = ({ planData, layout, onReset }: FloorPlanViewerProps) =>
   );
 
   const handleExportPDF = () => {
-    generateBlueprintPDF(planData, layout);
+    generateBlueprintPDF(planData, layout, selectedFloor);
     toast.success('Blueprint PDF downloaded!');
   };
 
